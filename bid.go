@@ -9,7 +9,7 @@ import (
 type Bid interface {
 	Value() int
 	Suit(Card) Suit
-	WhoWins(trick *c.List[Card], leader int) (winner int)
+	CardOrder(leadCard Card) *c.List[Card]
 	Won(tricksWon int) bool
 }
 
@@ -19,32 +19,11 @@ type SuitBid struct {
 }
 
 var suitBidValues = map[Suit]int{
-	Spades: 40, Clubs: 60, Diamonds: 80, Hearts: 100, NoSuit: 120,
+	Spades: 40, Clubs: 60, Diamonds: 80, Hearts: 100,
 }
 
 func (s SuitBid) Value() int {
 	return suitBidValues[s.trumpSuit] + 100*(s.tricks-6)
-}
-
-func (s SuitBid) WhoWins(trick *c.List[Card], leader int) int {
-	leadCard := E(trick.Get(leader))
-	leadSuit := leadCard.suit
-	trumpSuit := s.trumpSuit
-	order := cardOrder(leadSuit, trumpSuit)
-	winner := leader // whoever lead wins by default
-
-	for _, card := range *order {
-		i, err := trick.Find(card)
-		if err != nil {
-			// not found
-			continue
-		}
-
-		winner = i
-		break
-	}
-
-	return winner
 }
 
 // Returns the card order for the given lead suit and trump suit.
@@ -56,44 +35,46 @@ func (s SuitBid) WhoWins(trick *c.List[Card], leader int) int {
 //
 //	JOK  J♥  J♦  A♥  K♥  Q♥  10♥  ...
 //	A♠  K♠  Q♠  J♠  10♠  ...
-func cardOrder(lead, trumps Suit) *c.List[Card] {
+func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
+	leadSuit := b.Suit(leadCard)
+
 	order := c.NewList[Card](12)
 	order.Append(
 		JokerCard,
-		Card{Jack, trumps},
-		Card{Jack, sameColour[trumps]},
-		Card{Ace, trumps},
-		Card{King, trumps},
-		Card{Queen, trumps},
-		Card{10, trumps},
-		Card{9, trumps},
-		Card{8, trumps},
-		Card{7, trumps},
-		Card{6, trumps},
-		Card{5, trumps},
+		Card{Jack, b.trumpSuit},
+		Card{Jack, sameColour[b.trumpSuit]},
+		Card{Ace, b.trumpSuit},
+		Card{King, b.trumpSuit},
+		Card{Queen, b.trumpSuit},
+		Card{10, b.trumpSuit},
+		Card{9, b.trumpSuit},
+		Card{8, b.trumpSuit},
+		Card{7, b.trumpSuit},
+		Card{6, b.trumpSuit},
+		Card{5, b.trumpSuit},
 	)
 
-	trump4 := Card{4, trumps}
+	trump4 := Card{4, b.trumpSuit}
 	if getDeck().Contains(trump4) {
 		order.Append(trump4)
 	}
 
-	if lead != trumps {
+	if leadSuit != b.trumpSuit {
 		// Append cards of lead suit
 		order.Append(
-			Card{Ace, lead},
-			Card{King, lead},
-			Card{Queen, lead},
-			Card{Jack, lead},
-			Card{10, lead},
-			Card{9, lead},
-			Card{8, lead},
-			Card{7, lead},
-			Card{6, lead},
-			Card{5, lead},
+			Card{Ace, leadSuit},
+			Card{King, leadSuit},
+			Card{Queen, leadSuit},
+			Card{Jack, leadSuit},
+			Card{10, leadSuit},
+			Card{9, leadSuit},
+			Card{8, leadSuit},
+			Card{7, leadSuit},
+			Card{6, leadSuit},
+			Card{5, leadSuit},
 		)
 
-		lead4 := Card{4, lead}
+		lead4 := Card{4, leadSuit}
 		if getDeck().Contains(lead4) {
 			order.Append(lead4)
 		}
@@ -129,7 +110,20 @@ func (s SuitBid) String() string {
 	return fmt.Sprintf("%d%s", s.tricks, s.trumpSuit.Symbol())
 }
 
+type NoTrumpsBid struct {
+	tricks int
+}
+
+func (b NoTrumpsBid) Value() int {
+	return 120 + 100*(b.tricks-6)
+}
+
+func (b NoTrumpsBid) String() string {
+	return fmt.Sprintf("%dNT", b.tricks)
+}
+
 type MisereBid struct {
+	NoTrumpsBid
 	open bool
 }
 
@@ -138,4 +132,11 @@ func (b MisereBid) Value() int {
 		return 500
 	}
 	return 250
+}
+
+func (b MisereBid) String() string {
+	if b.open {
+		return "OpMis"
+	}
+	return "Mis"
 }

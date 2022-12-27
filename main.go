@@ -87,8 +87,7 @@ func main() {
 		}
 
 		// Determine winner
-		k := g.bid.WhoWins(g.Table, g.leader)
-		winner := (g.leader + k) % 4
+		winner := g.whoWins()
 		g.leader = winner
 		if winner == 0 || winner == 2 {
 			g.tricksWon++
@@ -371,6 +370,25 @@ func (g *gameState) validPlays(player int) *c.List[int] {
 	}
 
 	return valids
+}
+
+func (g *gameState) whoWins() int {
+	leadCard := E(g.Table.Get(g.leader))
+	order := g.bid.CardOrder(leadCard)
+	winner := g.leader // whoever lead wins by default
+
+	for _, card := range *order {
+		i, err := g.Table.Find(card)
+		if err != nil {
+			// not found
+			continue
+		}
+
+		winner = i
+		break
+	}
+
+	return winner
 }
 
 // Utility functions
