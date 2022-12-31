@@ -25,6 +25,7 @@ func main() {
 	g := new500Game()
 	g.redrawBoard()
 
+	// TODO: allow other players to bid
 	g.bid = getBid()
 	fmt.Println("bid: ", g.bid)
 	pressToContinue()
@@ -61,12 +62,16 @@ func main() {
 					// Show valid cards
 					g.redrawBoard()
 
-					in := prompt("play card: ",
-						func(s string) bool {
-							j, err := strconv.Atoi(s)
-							return err == nil && g.valid.Contains(j)
-						})
-					j = E(strconv.Atoi(in))
+					j = prompt("play card: ", func(s string) (int, error) {
+						j, err := strconv.Atoi(s)
+						if err != nil {
+							return 0, err
+						}
+						if !g.valid.Contains(j) {
+							return 0, fmt.Errorf("invalid play")
+						}
+						return j, nil
+					})
 				}
 
 			} else {
@@ -271,35 +276,45 @@ func (g *gameState) PrintHand() string {
 
 // Ask user for bid
 func getBid() Bid {
-	suitStr := prompt("Enter bid [s/c/d/h]: ", func(s string) bool {
+	suit := prompt("Enter bid [s/c/d/h]: ", func(s string) (Suit, error) {
 		switch s {
-		case "s", "c", "d", "h": //, "n", "m":
-			return true
+		case "s":
+			return Spades, nil
+		case "c":
+			return Clubs, nil
+		case "d":
+			return Diamonds, nil
+		case "h":
+			return Hearts, nil
+		// case "n":
+		// case "m":
+		default:
+			return "", fmt.Errorf("unknown bid %q", s)
 		}
-		return false
 	})
-	// if suitStr == "m" {
-	// 	// Misere
-	// 	openStr := prompt("", func(s string) bool {
-	// 		_, err := strconv.ParseBool(s)
-	// 		return err == nil
-	// 	})
-	// 	bid = MisereBid{E(strconv.ParseBool(s))}
-	// } else {
-	// }
-	tricksStr := prompt("Tricks [6-10]: ", func(s string) bool {
+
+	tricks := prompt("Tricks [6-10]: ", func(s string) (int, error) {
 		i, err := strconv.Atoi(s)
-		return err == nil && i >= 6 && i <= 10
+		if err != nil {
+			return 0, err
+		}
+		if i < 6 || i > 10 {
+			return 0, fmt.Errorf("invalid # of tricks %q", s)
+		}
+		return i, nil
 	})
+
 	return SuitBid{
-		E(strconv.Atoi(tricksStr)),
-		parseBid(suitStr),
+		tricks,
+		suit,
 	}
 }
 
-func prompt(pr string, validate func(string) bool) string {
+// Prompt the user for input.
+// A function can be provided to validate and transform the given input.
+func prompt[T any](pr string, f func(string) (T, error)) T {
 	s := bufio.NewScanner(os.Stdin)
-	var input string
+	var res T
 
 	for {
 		fmt.Print(pr)
@@ -308,8 +323,10 @@ func prompt(pr string, validate func(string) bool) string {
 			panic(err)
 		}
 
-		input = s.Text()
-		if validate(input) {
+		input := s.Text()
+		var err error
+		res, err = f(input)
+		if err == nil {
 			break
 		}
 
@@ -317,27 +334,12 @@ func prompt(pr string, validate func(string) bool) string {
 		fmt.Println(red("INVALID"))
 	}
 
-	return input
+	return res
 }
 
 func pressToContinue() {
 	fmt.Println("[press enter to continue]")
-	prompt("", func(s string) bool { return true })
-}
-
-func parseBid(s string) Suit {
-	switch s {
-	case "s":
-		return Spades
-	case "c":
-		return Clubs
-	case "d":
-		return Diamonds
-	case "h":
-		return Hearts
-	default:
-		panic(fmt.Sprintf("unknown suit %q", s))
-	}
+	prompt("", func(s string) (int, error) { return 0, nil })
 }
 
 func (g *gameState) clearTable() {
