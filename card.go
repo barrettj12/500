@@ -13,7 +13,11 @@ var (
 )
 
 func (c Card) String() string {
-	return c.rank.String() + c.suit.Symbol()
+	return c.rank.String() + c.suit.Symbol(true)
+}
+
+func (c Card) PrintGrey() string {
+	return grey(c.rank.String() + c.suit.Symbol(false))
 }
 
 type Rank int
@@ -54,16 +58,22 @@ const (
 	NoSuit   Suit = ""
 )
 
-func (s Suit) Symbol() string {
+func (s Suit) Symbol(colour bool) string {
 	switch s {
 	case Spades:
 		return "♠"
 	case Clubs:
 		return "♣"
 	case Diamonds:
-		return red("♦")
+		if colour {
+			return red("♦")
+		}
+		return "♦"
 	case Hearts:
-		return red("♥")
+		if colour {
+			return red("♥")
+		}
+		return "♥"
 	default:
 		return string(s)
 	}
@@ -71,27 +81,10 @@ func (s Suit) Symbol() string {
 
 // Coloured printing
 
-// ANSI colour codes
-type Colour int
-
-const (
-	Black Colour = 30
-	Red   Colour = 31
-	Grey  Colour = 37
-)
-
-func printColour(s string, c Colour) string {
-	return fmt.Sprintf("\u001b[%dm%s\u001b[0m", c, s)
-}
-
 func red(s string) string {
 	return fmt.Sprintf("\u001b[31m%s\u001b[0m", s)
 }
 
-func black(s string) string {
-	return fmt.Sprintf("\u001b[31m%s\u001b[0m", s)
-}
-
 func grey(s string) string {
-	return fmt.Sprintf("\u001b[37m%s\u001b[0m", s)
+	return fmt.Sprintf("\033[38;2;200;200;200m%s\033[0m", s)
 }

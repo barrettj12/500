@@ -107,7 +107,7 @@ func (s SuitBid) Won(tricksWon int) bool {
 }
 
 func (s SuitBid) String() string {
-	return fmt.Sprintf("%d%s", s.tricks, s.trumpSuit.Symbol())
+	return fmt.Sprintf("%d%s", s.tricks, s.trumpSuit.Symbol(true))
 }
 
 type NoTrumpsBid struct {

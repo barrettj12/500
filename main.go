@@ -29,7 +29,7 @@ func main() {
 	fmt.Println("bid: ", g.bid)
 	pressToContinue()
 
-	// Kitty
+	// TODO: Kitty
 	// yourHand := g.Players[0]
 	// yourHand.Append(*g.kitty...)
 	// sortHand(yourHand)
@@ -224,19 +224,27 @@ func (g *gameState) redrawBoard() {
 
 // Returns player's card suitable for printing.
 // Always has 3 characters.
-func FmtCard(card Card) string {
+func FmtCard(card Card, grey bool) string {
 	if (card == Card{}) {
 		return "[_]"
 	}
-	if (card == JokerCard) || card.rank == 10 {
-		return card.String()
+
+	var str string
+	if grey {
+		str = card.PrintGrey()
+	} else {
+		str = card.String()
 	}
-	return card.String() + " "
+
+	if (card == JokerCard) || card.rank == 10 {
+		return str
+	}
+	return str + " "
 }
 
 func (g *gameState) FmtTable(player int) string {
 	card := E(g.Table.Get(player))
-	return FmtCard(card)
+	return FmtCard(card, false)
 }
 
 func (g *gameState) PrintHand() string {
@@ -253,10 +261,8 @@ func (g *gameState) PrintHand() string {
 	}
 	str += "\n"
 	for i, card := range *hand {
-		c := FmtCard(card)
-		if g.valid != nil && !g.valid.Contains(i) {
-			c = grey(c)
-		}
+		grey := g.valid != nil && !g.valid.Contains(i)
+		c := FmtCard(card, grey)
 		str += c + " "
 	}
 
