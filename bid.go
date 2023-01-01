@@ -10,6 +10,7 @@ type Bid interface {
 	Value() int
 	Suit(Card) Suit
 	CardOrder(leadCard Card) *c.List[Card]
+	SortHand(*c.List[Card])
 	Won(tricksWon int) bool
 }
 
@@ -18,12 +19,35 @@ type SuitBid struct {
 	trumpSuit Suit
 }
 
+func (s SuitBid) String() string {
+	return fmt.Sprintf("%d%s", s.tricks, s.trumpSuit.Symbol(true))
+}
+
 var suitBidValues = map[Suit]int{
 	Spades: 40, Clubs: 60, Diamonds: 80, Hearts: 100,
 }
 
 func (s SuitBid) Value() int {
 	return suitBidValues[s.trumpSuit] + 100*(s.tricks-6)
+}
+
+// Which suit has same colour?
+var sameColour = map[Suit]Suit{
+	Spades: Clubs, Clubs: Spades,
+	Diamonds: Hearts, Hearts: Diamonds,
+}
+
+func (s SuitBid) lowBower() Card {
+	return Card{Jack, sameColour[s.trumpSuit]}
+}
+
+// Returns suit for the given card in this bid.
+// This is generally the same suit except for Joker and low bower.
+func (s SuitBid) Suit(c Card) Suit {
+	if c == JokerCard || c == s.lowBower() {
+		return s.trumpSuit
+	}
+	return c.suit
 }
 
 // Returns the card order for the given lead suit and trump suit.
@@ -42,7 +66,7 @@ func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
 	order.Append(
 		JokerCard,
 		Card{Jack, b.trumpSuit},
-		Card{Jack, sameColour[b.trumpSuit]},
+		b.lowBower(),
 		Card{Ace, b.trumpSuit},
 		Card{King, b.trumpSuit},
 		Card{Queen, b.trumpSuit},
@@ -83,31 +107,33 @@ func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
 	return order
 }
 
-// Which suit has same colour?
-var sameColour = map[Suit]Suit{
-	Spades: Clubs, Clubs: Spades,
-	Diamonds: Hearts, Hearts: Diamonds,
-}
+// Sort hand as follows:
+//
+//	Off-suits (in bidding order): [4] 5 6 7 8 9 10 J Q K A
+//	followed by trumps: [4] 5 6 7 8 9 10 Q K A LB J JOK
+func (b SuitBid) SortHand(hand *c.List[Card]) {
+	hand.Sort(func(c, d Card) bool {
+		suitOrder := map[Suit]int{Spades: 1, Clubs: 2, Diamonds: 3, Hearts: 4}
+		suitOrder[b.trumpSuit] = 5
+		suit1 := suitOrder[b.Suit(c)]
+		suit2 := suitOrder[b.Suit(d)]
+		if suit1 < suit2 {
+			return true
+		}
+		if suit1 > suit2 {
+			return false
+		}
 
-func (s SuitBid) lowBower() Card {
-	return Card{Jack, sameColour[s.trumpSuit]}
-}
-
-// Returns suit for the given card in this bid.
-// This is generally the same suit except for Joker and low bower.
-func (s SuitBid) Suit(c Card) Suit {
-	if c == JokerCard || c == s.lowBower() {
-		return s.trumpSuit
-	}
-	return c.suit
+		// Same suit - use card order
+		cardOrder := b.CardOrder(c)
+		i1 := E(cardOrder.Find(c))
+		i2 := E(cardOrder.Find(d))
+		return i1 > i2
+	})
 }
 
 func (s SuitBid) Won(tricksWon int) bool {
 	return tricksWon >= s.tricks
-}
-
-func (s SuitBid) String() string {
-	return fmt.Sprintf("%d%s", s.tricks, s.trumpSuit.Symbol(true))
 }
 
 type NoTrumpsBid struct {

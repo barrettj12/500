@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -30,16 +31,28 @@ func main() {
 	fmt.Println("bid: ", g.bid)
 	pressToContinue()
 
-	// TODO: Kitty
-	// yourHand := g.Players[0]
-	// yourHand.Append(*g.kitty...)
-	// sortHand(yourHand)
+	// Kitty
+	yourHand := g.Players[0]
+	yourHand.Append(*g.kitty...)
+	g.bid.SortHand(yourHand)
 
-	// g.redrawBoard()
-	// prompt("Cards to dump:", func(s string) bool {
-	// 	// nums := strings.Split(s, ",")
-	// 	return true
-	// })
+	g.redrawBoard()
+	toDump := prompt("Cards to dump [x,y,z]: ", func(s string) (*c.List[int], error) {
+		nums := strings.Split(s, ",")
+		if len(nums) != 3 {
+			return nil, fmt.Errorf("expected 3 nums, received %d", len(nums))
+		}
+		ints := c.NewList[int](3)
+		for _, str := range nums {
+			n, err := strconv.Atoi(str)
+			if err != nil {
+				return nil, err
+			}
+			ints.Append(n)
+		}
+		return ints, nil
+	})
+	g.Players[0] = yourHand.Filter(func(i int, _ Card) bool { return !toDump.Contains(i) })
 
 	for g.Players[0].Size() > 0 {
 		g.clearTable()
@@ -331,7 +344,7 @@ func prompt[T any](pr string, f func(string) (T, error)) T {
 		}
 
 		// Invalid input
-		fmt.Println(red("INVALID"))
+		fmt.Println(red(fmt.Sprintf("INVALID: %s", err)))
 	}
 
 	return res
