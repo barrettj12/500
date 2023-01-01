@@ -7,8 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"os"
-	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
@@ -27,79 +25,32 @@ func main() {
 	g.redrawBoard()
 
 	// TODO: allow other players to bid
-	g.bid = getBid()
+	g.bidder = 0
+	g.bid = g.Players[0].Bid()
+	for _, p := range g.Players {
+		p.SetBid(g.bid)
+	}
 	fmt.Println("bid: ", g.bid)
 	pressToContinue()
 
 	// Kitty
-	yourHand := g.Players[0]
-	yourHand.Append(*g.kitty...)
-	g.bid.SortHand(yourHand)
+	g.Players[g.bidder].AwardKitty(g.kitty)
 
-	g.redrawBoard()
-	toDump := prompt("Cards to dump [x,y,z]: ", func(s string) (*c.List[int], error) {
-		nums := strings.Split(s, ",")
-		if len(nums) != 3 {
-			return nil, fmt.Errorf("expected 3 nums, received %d", len(nums))
-		}
-		ints := c.NewList[int](3)
-		for _, str := range nums {
-			n, err := strconv.Atoi(str)
-			if err != nil {
-				return nil, err
-			}
-			ints.Append(n)
-		}
-		return ints, nil
-	})
-	g.Players[0] = yourHand.Filter(func(i int, _ Card) bool { return !toDump.Contains(i) })
-
-	for g.Players[0].Size() > 0 {
+	for trickNum := 0; trickNum < 10; trickNum++ {
 		g.clearTable()
 		g.redrawBoard()
 		time.Sleep(SLEEP)
 
+		trick := c.NewList[Card](4)
+
 		for i := 0; i < 4; i++ {
-			nextPlayer := (i + g.leader) % 4
-			hand := g.Players[nextPlayer]
+			playerNum := (i + g.leader) % 4
+			player := g.Players[playerNum]
 
-			// Pick next card to play
-			var j int
-			if nextPlayer == 0 {
-				// Your turn
-				g.valid = g.validPlays(0)
+			card := player.Play(trick)
+			trick.Append(card)
+			g.Table.Set(playerNum, card)
 
-				if g.valid.Size() == 1 {
-					j = E(g.valid.Get(0))
-				} else {
-					// Show valid cards
-					g.redrawBoard()
-
-					j = prompt("play card: ", func(s string) (int, error) {
-						j, err := strconv.Atoi(s)
-						if err != nil {
-							return 0, err
-						}
-						if !g.valid.Contains(j) {
-							return 0, fmt.Errorf("invalid play")
-						}
-						return j, nil
-					})
-				}
-
-			} else {
-				valid := g.validPlays(nextPlayer)
-				r := rand.Intn(valid.Size())
-				j = E(valid.Get(r))
-			}
-
-			card, err := hand.Remove(j)
-			if err != nil {
-				panic(err)
-			}
-
-			g.Table.Set(nextPlayer, card)
-			g.valid = nil
 			g.redrawBoard()
 			time.Sleep(SLEEP)
 		}
@@ -111,7 +62,7 @@ func main() {
 			g.tricksWon++
 		}
 
-		fmt.Println("winner: ", g.PlayerNames[winner])
+		fmt.Println("winner: ", g.Players[winner].Name())
 		time.Sleep(SLEEP)
 		pressToContinue()
 	}
@@ -126,47 +77,41 @@ func main() {
 
 // gameState represents the current state of a 500 game
 type gameState struct {
-	Players [4]*c.List[Card]
+	Players [4]Player
 	Table   *c.List[Card]
-
-	PlayerNames map[int]string
 
 	kitty     *c.List[Card]
 	bid       Bid
+	bidder    int
 	tricksWon int
 	leader    int
-
-	valid *c.List[int] // valid plays in current hand
 }
 
-func new500Game() gameState {
+func new500Game() *gameState {
 	deck := getDeck()
 	deck.Shuffle()
 
 	// Teams are (0, 2), (1, 3)
-	players := [4]*c.List[Card]{
-		E(deck.CopyPart(0, 10)),
-		E(deck.CopyPart(10, 20)),
-		E(deck.CopyPart(20, 30)),
-		E(deck.CopyPart(30, 40)),
+	players := [4]Player{
+		nil,
+		NewRandomPlayer("Op1", E(deck.CopyPart(10, 20))),
+		NewRandomPlayer("Partner", E(deck.CopyPart(20, 30))),
+		NewRandomPlayer("Op2", E(deck.CopyPart(30, 40))),
 	}
-	sortHand(players[0])
+	// sortHand(players[0])
 
 	kitty := E(deck.CopyPart(40, 43))
 
-	return gameState{
-		Players: players,
-		Table:   c.AsList(make([]Card, 4)),
-		PlayerNames: map[int]string{
-			0: "You",
-			1: "Op1",
-			2: "Partner",
-			3: "Op2",
-		},
+	g := &gameState{
+		Players:   players,
+		Table:     c.AsList(make([]Card, 4)),
 		kitty:     kitty,
 		tricksWon: 0,
 		leader:    0,
 	}
+	g.Players[0] = NewHumanPlayer("You", E(deck.CopyPart(0, 10)), g)
+	g.redrawBoard()
+	return g
 }
 
 // Returns the 500 deck
@@ -187,44 +132,16 @@ func getDeck() *c.List[Card] {
 	})
 }
 
-func sortHand(hand *c.List[Card]) {
-	hand.Sort(func(c, d Card) bool {
-		if c.rank == Joker {
-			return false
-		}
-		if d.rank == Joker {
-			return true
-		}
-
-		suitOrder := map[Suit]int{Spades: 1, Clubs: 2, Diamonds: 3, Hearts: 4}
-		suit1 := suitOrder[c.suit]
-		suit2 := suitOrder[d.suit]
-		if suit1 < suit2 {
-			return true
-		}
-		if suit1 > suit2 {
-			return false
-		}
-
-		// Same suit - aces high
-		if c.rank == Ace {
-			return false
-		}
-		if d.rank == Ace {
-			return true
-		}
-		return c.rank < d.rank
-	})
-}
-
 func (g *gameState) redrawBoard() {
 	tmpl := E(template.New("test").Parse("\033[H\033[2J" + // clear screen
 		`
-      {{index .PlayerNames 2}}
+Bid: {{.PrintBid}}
+
+      {{(index .Players 2).Name}}
         {{.FmtTable 2}}
-  {{index .PlayerNames 1}}         {{index .PlayerNames 3}}
+  {{(index .Players 1).Name}}         {{(index .Players 3).Name}}
   {{.FmtTable 1}}         {{.FmtTable 3}}
-        {{index .PlayerNames 0}}
+        {{(index .Players 0).Name}}
         {{.FmtTable 0}}
 
 {{.PrintHand}}
@@ -238,6 +155,13 @@ func (g *gameState) redrawBoard() {
 
 	// Write gamestate to file
 	os.WriteFile(".gamestate.log", []byte(pretty.Sprint(g)), os.ModePerm)
+}
+
+func (g *gameState) PrintBid() string {
+	if g.bid == nil {
+		return "—"
+	}
+	return fmt.Sprint(g.bid)
 }
 
 // Returns player's card suitable for printing.
@@ -266,61 +190,25 @@ func (g *gameState) FmtTable(player int) string {
 }
 
 func (g *gameState) PrintHand() string {
-	// TODO: use g.valid, grey out invalid cards
 	str := ""
-	hand := g.Players[0]
+	player := g.Players[0].(*HumanPlayer)
+	hand := player.hand
 
 	for i := 0; i < hand.Size(); i++ {
 		num := fmt.Sprintf("%-4d", i)
-		if g.valid != nil && !g.valid.Contains(i) {
+		if player.valid != nil && !player.valid.Contains(i) {
 			num = grey(num)
 		}
 		str += num
 	}
 	str += "\n"
 	for i, card := range *hand {
-		grey := g.valid != nil && !g.valid.Contains(i)
+		grey := player.valid != nil && !player.valid.Contains(i)
 		c := FmtCard(card, grey)
 		str += c + " "
 	}
 
 	return str
-}
-
-// Ask user for bid
-func getBid() Bid {
-	suit := prompt("Enter bid [s/c/d/h]: ", func(s string) (Suit, error) {
-		switch s {
-		case "s":
-			return Spades, nil
-		case "c":
-			return Clubs, nil
-		case "d":
-			return Diamonds, nil
-		case "h":
-			return Hearts, nil
-		// case "n":
-		// case "m":
-		default:
-			return "", fmt.Errorf("unknown bid %q", s)
-		}
-	})
-
-	tricks := prompt("Tricks [6-10]: ", func(s string) (int, error) {
-		i, err := strconv.Atoi(s)
-		if err != nil {
-			return 0, err
-		}
-		if i < 6 || i > 10 {
-			return 0, fmt.Errorf("invalid # of tricks %q", s)
-		}
-		return i, nil
-	})
-
-	return SuitBid{
-		tricks,
-		suit,
-	}
 }
 
 // Prompt the user for input.
@@ -359,38 +247,6 @@ func (g *gameState) clearTable() {
 	for i := 0; i < 4; i++ {
 		g.Table.Set(i, Card{})
 	}
-}
-
-// Returns the indices of valid cards to play.
-func (g *gameState) validPlays(player int) *c.List[int] {
-	valids := c.NewList[int](g.Players[player].Size())
-	hand := g.Players[player]
-
-	for i, card := range *hand {
-		if player == g.leader {
-			// Can lead with any card
-			valids.Append(i)
-			continue
-		}
-
-		// We have to follow suit if we can
-		leadCard := E(g.Table.Get(g.leader))
-		leadSuit := g.bid.Suit(leadCard)
-		if g.bid.Suit(card) == leadSuit {
-			valids.Append(i)
-			continue
-		}
-
-		// Check if we can't follow suit: then we can play anything
-		numOfLeadSuit := hand.Count(func(_ int, c Card) bool { return g.bid.Suit(c) == leadSuit })
-
-		if numOfLeadSuit == 0 {
-			valids.Append(i)
-			continue
-		}
-	}
-
-	return valids
 }
 
 func (g *gameState) whoWins() int {

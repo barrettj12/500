@@ -10,6 +10,7 @@ type Bid interface {
 	Value() int
 	Suit(Card) Suit
 	CardOrder(leadCard Card) *c.List[Card]
+	ValidPlays(trick, hand *c.List[Card]) *c.List[int]
 	SortHand(*c.List[Card])
 	Won(tricksWon int) bool
 }
@@ -107,6 +108,39 @@ func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
 	return order
 }
 
+// Returns indices of valid plays in hand.
+func (b SuitBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+	valids := c.NewList[int](hand.Size())
+
+	for i, card := range *hand {
+		if trick.Size() == 0 {
+			// Can lead with any card
+			valids.Append(i)
+			continue
+		}
+
+		// We have to follow suit if we can
+		leadCard := E(trick.Get(0))
+		leadSuit := b.Suit(leadCard)
+		if b.Suit(card) == leadSuit {
+			valids.Append(i)
+			continue
+		}
+
+		// Check if we can't follow suit: then we can play anything
+		numOfLeadSuit := hand.Count(func(_ int, c Card) bool {
+			return b.Suit(c) == leadSuit
+		})
+
+		if numOfLeadSuit == 0 {
+			valids.Append(i)
+			continue
+		}
+	}
+
+	return valids
+}
+
 // Sort hand as follows:
 //
 //	Off-suits (in bidding order): [4] 5 6 7 8 9 10 J Q K A
@@ -140,12 +174,42 @@ type NoTrumpsBid struct {
 	tricks int
 }
 
+func (b NoTrumpsBid) String() string {
+	return fmt.Sprintf("%dNT", b.tricks)
+}
+
 func (b NoTrumpsBid) Value() int {
 	return 120 + 100*(b.tricks-6)
 }
 
-func (b NoTrumpsBid) String() string {
-	return fmt.Sprintf("%dNT", b.tricks)
+func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
+	hand.Sort(func(c, d Card) bool {
+		if c.rank == Joker {
+			return false
+		}
+		if d.rank == Joker {
+			return true
+		}
+
+		suitOrder := map[Suit]int{Spades: 1, Clubs: 2, Diamonds: 3, Hearts: 4}
+		suit1 := suitOrder[c.suit]
+		suit2 := suitOrder[d.suit]
+		if suit1 < suit2 {
+			return true
+		}
+		if suit1 > suit2 {
+			return false
+		}
+
+		// Same suit - aces high
+		if c.rank == Ace {
+			return false
+		}
+		if d.rank == Ace {
+			return true
+		}
+		return c.rank < d.rank
+	})
 }
 
 type MisereBid struct {
