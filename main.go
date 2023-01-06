@@ -2,15 +2,14 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"text/template"
 	"time"
 
 	c "github.com/barrettj12/collections"
+	"github.com/barrettj12/screen"
 	"github.com/kr/pretty"
 )
 
@@ -133,8 +132,9 @@ func getDeck() *c.List[Card] {
 }
 
 func (g *gameState) redrawBoard() {
-	tmpl := E(template.New("test").Parse("\033[H\033[2J" + // clear screen
-		`
+	screen.Clear()
+
+	tmpl := E(template.New("test").Parse(`
 Bid: {{.PrintBid}}
 
       {{(index .Players 2).Name}}
@@ -149,9 +149,8 @@ Bid: {{.PrintBid}}
 `[1:]))
 
 	// Print to buffer first - less flickering?
-	buf := &bytes.Buffer{}
-	E0(tmpl.Execute(buf, g))
-	io.Copy(os.Stdout, buf)
+	E0(tmpl.Execute(screen.Writer(), g))
+	screen.Update()
 
 	// Write gamestate to file
 	os.WriteFile(".gamestate.log", []byte(pretty.Sprint(g)), os.ModePerm)
