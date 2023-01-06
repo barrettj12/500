@@ -1,5 +1,5 @@
-github.com/barrettj12/collections v0.0.0-20221210125537-d5a11bf25c53 h1:zAGA3NkUQv3RiI7wDF9Tka6IM0XqZKjhIywEbTi/Rcw=
-github.com/barrettj12/collections v0.0.0-20221210125537-d5a11bf25c53/go.mod h1:vuU687Fae4Ju1h/6+7GFV6D4PSL3N008jun6ATzx0GI=
+github.com/barrettj12/collections v0.0.0-20230106054051-4651592a9764 h1:OxVszmUb2FT9jm2mKVkiRGxP6k//CofvXAhx6Ja1MDU=
+github.com/barrettj12/collections v0.0.0-20230106054051-4651592a9764/go.mod h1:vuU687Fae4Ju1h/6+7GFV6D4PSL3N008jun6ATzx0GI=
 github.com/barrettj12/screen v0.0.0-20230105202644-d1d68446f2b3 h1:7MqXoYodpIXdBgn021cX/o+891WQykc0S0f3SILLhoM=
 github.com/barrettj12/screen v0.0.0-20230105202644-d1d68446f2b3/go.mod h1:co4O6K3FKApNIfWV1zxH6VS08TBkwhlGW80Ggu5YUKE=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
