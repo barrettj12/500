@@ -269,40 +269,26 @@ func (p *HumanPlayer) PrintHand() string {
 }
 
 // Plays a random (valid) card each round.
-type RandomPlayer struct {
-	name string
-	hand *c.List[Card]
-	bid  Bid
+type RandomPlayer struct{}
+
+func (r *RandomPlayer) NotifyHand(*c.List[Card])            {}
+func (r *RandomPlayer) NotifyBid(player int, bid Bid)       {}
+func (r *RandomPlayer) NotifyBidWinner(player int, bid Bid) {}
+func (r *RandomPlayer) NotifyPlay(player int, card Card)    {}
+func (r *RandomPlayer) NotifyTrickWinner(player int)        {}
+func (r *RandomPlayer) NotifyHandResult(res HandResult)     {}
+
+func (r *RandomPlayer) Bid() Bid {
+	// Random player doesn't bid
+	return Pass{}
 }
 
-func NewRandomPlayer(name string, hand *c.List[Card]) *RandomPlayer {
-	return &RandomPlayer{
-		name: name,
-		hand: hand,
-	}
+func (r *RandomPlayer) Drop3() *c.Set[int] {
+	// Random player never wins bid, so we don't need to implement
+	panic("RandomPlayer.Drop3 unimplemented")
 }
 
-func (p *RandomPlayer) Name() string {
-	return p.name
-}
-
-func (p *RandomPlayer) Bid() Bid {
-	return nil
-}
-
-func (p *RandomPlayer) SetBid(bid Bid) {
-	p.bid = bid
-}
-
-func (p *RandomPlayer) AwardKitty(kitty *c.List[Card]) {
-	// Ignore kitty
-}
-
-func (p *RandomPlayer) Play(trick *c.List[Card]) Card {
-	valid := p.bid.ValidPlays(trick, p.hand)
-	r := rand.Intn(valid.Size())
-	j := E(valid.Get(r))
-
-	card := E(p.hand.Remove(j))
-	return card
+func (r *RandomPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+	n := rand.Intn(validPlays.Size())
+	return E(validPlays.Get(n))
 }
