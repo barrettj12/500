@@ -230,3 +230,16 @@ func (b MisereBid) String() string {
 	}
 	return "Mis"
 }
+
+// Pass is a special Bid used by the controller in the bidding round
+// to represent a Player passing.
+type Pass struct{}
+
+// None of these functions should be called - they just ensure that Pass is a
+// Bid.
+func (p Pass) Value() int
+func (p Pass) Suit(Card) Suit
+func (p Pass) CardOrder(leadCard Card) *c.List[Card]
+func (p Pass) ValidPlays(trick, hand *c.List[Card]) *c.List[int]
+func (p Pass) SortHand(*c.List[Card])
+func (p Pass) Won(tricksWon int) bool

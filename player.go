@@ -14,13 +14,13 @@ import (
 // - keeping track of its own hand
 // - ensuring it has the correct number of cards in hand at each time
 // - ensuring all its plays are valid
-type Player interface {
-	Name() string
-	Bid() Bid
-	SetBid(Bid)
-	AwardKitty(*c.List[Card])
-	Play(trick *c.List[Card]) Card
-}
+// type Player interface {
+// 	Name() string
+// 	Bid() Bid
+// 	SetBid(Bid)
+// 	AwardKitty(*c.List[Card])
+// 	Play(trick *c.List[Card]) Card
+// }
 
 type HumanPlayer struct {
 	name string
