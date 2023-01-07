@@ -1,48 +1,84 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
+	"text/template"
 
 	c "github.com/barrettj12/collections"
+	"github.com/barrettj12/screen"
 )
 
-// Player is an interface representing a 500 player (human or computer).
-// Each Player is responsible for:
-// - keeping track of its own hand
-// - ensuring it has the correct number of cards in hand at each time
-// - ensuring all its plays are valid
-// type Player interface {
-// 	Name() string
-// 	Bid() Bid
-// 	SetBid(Bid)
-// 	AwardKitty(*c.List[Card])
-// 	Play(trick *c.List[Card]) Card
-// }
+// Player represents a 500 player. The controller interacts with the player
+// in two distinct ways:
+//   - Events: the controller informs a player of something that has happened
+//     (e.g. another player making a bid or play).
+//   - Requests: the controller asks for input from a player (e.g. what card
+//     they would like to play).
+type Player interface {
+	// Events
+	NotifyHand(*c.List[Card])
+	NotifyBid(player int, bid Bid)
+	NotifyBidWinner(player int, bid Bid)
+	NotifyPlay(player int, card Card)
+	NotifyTrickWinner(player int)
+	NotifyHandResult(res HandResult)
 
+	// Requests
+	Bid() Bid
+	Drop3() *c.Set[int]
+	// Play asks the player to play a card on the given trick.
+	// The returned response must be an element of validPlays.
+	Play(trick *c.List[Card], validPlays *c.List[int]) int
+}
+
+// HumanPlayer is a player controlled by the user.
+// It controls printing of the table state to the terminal.
 type HumanPlayer struct {
-	name string
-	hand *c.List[Card]
-	bid  Bid
-
-	gs    *gameState
+	Hand  *c.List[Card]
+	Table [4]Card
 	valid *c.List[int]
+
+	bid    Bid
+	bidder int
 }
 
-func NewHumanPlayer(name string, hand *c.List[Card], gs *gameState) *HumanPlayer {
-	p := &HumanPlayer{
-		name: name,
-		hand: hand,
-		gs:   gs,
+func (p *HumanPlayer) NotifyHand(hand *c.List[Card]) {
+	p.Hand = hand
+	p.redrawBoard()
+}
+
+func (p *HumanPlayer) NotifyBid(player int, bid Bid) {
+	fmt.Printf("%s bid %s\n", playerNames[player], bid)
+}
+
+func (p *HumanPlayer) NotifyBidWinner(player int, bid Bid) {
+	fmt.Printf("%s won the bidding with %s\n", playerNames[player], bid)
+}
+
+func (p *HumanPlayer) NotifyPlay(player int, card Card) {
+	p.Table[player] = card
+	p.redrawBoard()
+	fmt.Printf("%s played %s\n", playerNames[player], card)
+}
+
+func (p *HumanPlayer) NotifyTrickWinner(player int) {
+	fmt.Printf("%s won the trick\n", playerNames[player])
+	p.clearTable()
+}
+
+func (p *HumanPlayer) clearTable() {
+	for i := 0; i < 4; i++ {
+		p.Table[i] = Card{}
 	}
-	NoTrumpsBid{}.SortHand(hand)
-	return p
 }
 
-func (p *HumanPlayer) Name() string {
-	return p.name
+func (p *HumanPlayer) NotifyHandResult(res HandResult) {
+	fmt.Println(res.Info())
 }
 
 func (p *HumanPlayer) Bid() Bid {
@@ -80,16 +116,8 @@ func (p *HumanPlayer) Bid() Bid {
 	}
 }
 
-func (p *HumanPlayer) SetBid(bid Bid) {
-	p.bid = bid
-}
-
-func (p *HumanPlayer) AwardKitty(kitty *c.List[Card]) {
-	p.hand.Append(*kitty...)
-	p.bid.SortHand(p.hand)
-
-	p.redrawBoard()
-	toDump := prompt("Cards to dump [x,y,z]: ", func(s string) (*c.Set[int], error) {
+func (p *HumanPlayer) Drop3() *c.Set[int] {
+	return prompt("Cards to dump [x,y,z]: ", func(s string) (*c.Set[int], error) {
 		nums := strings.Split(s, ",")
 		if len(nums) != 3 {
 			return nil, fmt.Errorf("expected 3 nums, received %d", len(nums))
@@ -114,39 +142,130 @@ func (p *HumanPlayer) AwardKitty(kitty *c.List[Card]) {
 
 		return ints, nil
 	})
-	p.hand = p.hand.Filter(func(i int, _ Card) bool { return !toDump.Contains(i) })
 }
 
-func (p *HumanPlayer) Play(trick *c.List[Card]) Card {
-	p.valid = p.bid.ValidPlays(trick, p.hand)
-
-	var j int
-	if p.valid.Size() == 1 {
-		j = E(p.valid.Get(0))
-	} else {
-		// Show valid cards
-		p.redrawBoard()
-
-		j = prompt("play card: ", func(s string) (int, error) {
-			j, err := strconv.Atoi(s)
-			if err != nil {
-				return 0, err
-			}
-			if !p.valid.Contains(j) {
-				return 0, fmt.Errorf("invalid play")
-			}
-			return j, nil
-		})
+func (p *HumanPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+	if validPlays.Size() == 1 {
+		return E(p.valid.Get(0))
 	}
 
-	card := E(p.hand.Remove(j))
-	p.valid = nil
-	return card
+	// Show valid cards
+	p.valid = validPlays
+	defer func() { p.valid = nil }()
+	p.redrawBoard()
+
+	return prompt("play card: ", func(s string) (int, error) {
+		j, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, err
+		}
+		if !p.valid.Contains(j) {
+			return 0, fmt.Errorf("invalid play")
+		}
+		return j, nil
+	})
+}
+
+// Prompt the user for input.
+// A function can be provided to validate and transform the given input.
+func prompt[T any](pr string, f func(string) (T, error)) T {
+	s := bufio.NewScanner(os.Stdin)
+	var res T
+
+	for {
+		fmt.Print(pr)
+		s.Scan()
+		if err := s.Err(); err != nil {
+			panic(err)
+		}
+
+		input := s.Text()
+		var err error
+		res, err = f(input)
+		if err == nil {
+			break
+		}
+
+		// Invalid input
+		fmt.Println(red(fmt.Sprintf("INVALID: %s", err)))
+	}
+
+	return res
 }
 
 func (p *HumanPlayer) redrawBoard() {
-	// TODO: move drawing logic into HumanPlayer
-	p.gs.redrawBoard()
+	screen.Clear()
+
+	tmpl := E(template.New("test").Parse(`
+Bid: {{.PrintBid}}
+
+        {{index playerNames 2}}
+        {{.FmtTable 2}}
+  {{index playerNames 1}}         {{index playerNames 3}}
+  {{.FmtTable 1}}         {{.FmtTable 3}}
+        {{index playerNames 0}}
+        {{.FmtTable 0}}
+
+{{.PrintHand}}
+
+`[1:]))
+
+	E0(tmpl.Execute(screen.Writer(), p))
+	screen.Update()
+}
+
+var playerNames = []string{"You", "Op1", "Pnr", "Op2"}
+
+func (p *HumanPlayer) PrintBid() string {
+	if p.bid == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%s by %s", p.bid, playerNames[p.bidder])
+}
+
+// Returns player's card suitable for printing.
+// Always has 3 characters.
+func FmtCard(card Card, grey bool) string {
+	if (card == Card{}) {
+		return "[_]"
+	}
+
+	var str string
+	if grey {
+		str = card.PrintGrey()
+	} else {
+		str = card.String()
+	}
+
+	if (card == JokerCard) || card.rank == 10 {
+		return str
+	}
+	return str + " "
+}
+
+func (p *HumanPlayer) FmtTable(player int) string {
+	card := p.Table[player]
+	return FmtCard(card, false)
+}
+
+func (p *HumanPlayer) PrintHand() string {
+	str := ""
+
+	for i := 0; i < p.Hand.Size(); i++ {
+		num := fmt.Sprintf("%-4d", i)
+		if p.valid != nil && !p.valid.Contains(i) {
+			num = grey(num)
+		}
+		str += num
+	}
+	str += "\n"
+	for i, card := range *p.Hand {
+		grey := p.valid != nil && !p.valid.Contains(i)
+		c := FmtCard(card, grey)
+		str += c + " "
+	}
+
+	return str
 }
 
 // Plays a random (valid) card each round.

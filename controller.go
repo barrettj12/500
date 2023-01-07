@@ -87,6 +87,9 @@ func (ct *Controller) Play() {
 
 	ct.bid = winningBid
 	ct.contractor = winningBidder
+	for i := 0; i < 4; i++ {
+		ct.players[i].NotifyBidWinner(ct.contractor, ct.bid)
+	}
 
 	// Kitty
 	ct.hands[ct.contractor].Append(*ct.kitty...)
@@ -186,28 +189,6 @@ func (ct *Controller) whoWins(trickNum int) int {
 	}
 
 	return winner
-}
-
-// Player represents a 500 player. The controller interacts with the player
-// in two distinct ways:
-//   - Events: the controller informs a player of something that has happened
-//     (e.g. another player making a bid or play).
-//   - Requests: the controller asks for input from a player (e.g. what card
-//     they would like to play).
-type Player interface {
-	// Events
-	NotifyHand(*c.List[Card])
-	NotifyBid(player int, bid Bid)
-	NotifyPlay(player int, card Card)
-	NotifyTrickWinner(player int)
-	NotifyHandResult(res HandResult)
-
-	// Requests
-	Bid() Bid
-	Drop3() *c.Set[int]
-	// Play asks the player to play a card on the given trick.
-	// The returned response must be an element of validPlays.
-	Play(trick *c.List[Card], validPlays *c.List[int]) int
 }
 
 // HandResult represents the outcome of a hand.

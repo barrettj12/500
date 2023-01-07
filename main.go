@@ -1,16 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"math/rand"
-	"os"
-	"text/template"
 	"time"
 
 	c "github.com/barrettj12/collections"
-	"github.com/barrettj12/screen"
-	"github.com/kr/pretty"
 )
 
 const SLEEP = 500 * time.Millisecond
@@ -131,140 +126,9 @@ func getDeck() *c.List[Card] {
 	})
 }
 
-func (g *gameState) redrawBoard() {
-	screen.Clear()
-
-	tmpl := E(template.New("test").Parse(`
-Bid: {{.PrintBid}}
-
-      {{(index .Players 2).Name}}
-        {{.FmtTable 2}}
-  {{(index .Players 1).Name}}         {{(index .Players 3).Name}}
-  {{.FmtTable 1}}         {{.FmtTable 3}}
-        {{(index .Players 0).Name}}
-        {{.FmtTable 0}}
-
-{{.PrintHand}}
-
-`[1:]))
-
-	// Print to buffer first - less flickering?
-	E0(tmpl.Execute(screen.Writer(), g))
-	screen.Update()
-
-	// Write gamestate to file
-	os.WriteFile(".gamestate.log", []byte(pretty.Sprint(g)), os.ModePerm)
-}
-
-func (g *gameState) PrintBid() string {
-	if g.bid == nil {
-		return "—"
-	}
-	return fmt.Sprint(g.bid)
-}
-
-// Returns player's card suitable for printing.
-// Always has 3 characters.
-func FmtCard(card Card, grey bool) string {
-	if (card == Card{}) {
-		return "[_]"
-	}
-
-	var str string
-	if grey {
-		str = card.PrintGrey()
-	} else {
-		str = card.String()
-	}
-
-	if (card == JokerCard) || card.rank == 10 {
-		return str
-	}
-	return str + " "
-}
-
-func (g *gameState) FmtTable(player int) string {
-	card := E(g.Table.Get(player))
-	return FmtCard(card, false)
-}
-
-func (g *gameState) PrintHand() string {
-	str := ""
-	player := g.Players[0].(*HumanPlayer)
-	hand := player.hand
-
-	for i := 0; i < hand.Size(); i++ {
-		num := fmt.Sprintf("%-4d", i)
-		if player.valid != nil && !player.valid.Contains(i) {
-			num = grey(num)
-		}
-		str += num
-	}
-	str += "\n"
-	for i, card := range *hand {
-		grey := player.valid != nil && !player.valid.Contains(i)
-		c := FmtCard(card, grey)
-		str += c + " "
-	}
-
-	return str
-}
-
-// Prompt the user for input.
-// A function can be provided to validate and transform the given input.
-func prompt[T any](pr string, f func(string) (T, error)) T {
-	s := bufio.NewScanner(os.Stdin)
-	var res T
-
-	for {
-		fmt.Print(pr)
-		s.Scan()
-		if err := s.Err(); err != nil {
-			panic(err)
-		}
-
-		input := s.Text()
-		var err error
-		res, err = f(input)
-		if err == nil {
-			break
-		}
-
-		// Invalid input
-		fmt.Println(red(fmt.Sprintf("INVALID: %s", err)))
-	}
-
-	return res
-}
-
 func pressToContinue() {
 	fmt.Println("[press enter to continue]")
 	prompt("", func(s string) (int, error) { return 0, nil })
-}
-
-func (g *gameState) clearTable() {
-	for i := 0; i < 4; i++ {
-		g.Table.Set(i, Card{})
-	}
-}
-
-func (g *gameState) whoWins() int {
-	leadCard := E(g.Table.Get(g.leader))
-	order := g.bid.CardOrder(leadCard)
-	winner := g.leader // whoever lead wins by default
-
-	for _, card := range *order {
-		i, err := g.Table.Find(card)
-		if err != nil {
-			// not found
-			continue
-		}
-
-		winner = i
-		break
-	}
-
-	return winner
 }
 
 // Utility functions
