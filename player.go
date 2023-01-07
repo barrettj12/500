@@ -89,20 +89,29 @@ func (p *HumanPlayer) AwardKitty(kitty *c.List[Card]) {
 	p.bid.SortHand(p.hand)
 
 	p.redrawBoard()
-	toDump := prompt("Cards to dump [x,y,z]: ", func(s string) (*c.List[int], error) {
+	toDump := prompt("Cards to dump [x,y,z]: ", func(s string) (*c.Set[int], error) {
 		nums := strings.Split(s, ",")
 		if len(nums) != 3 {
 			return nil, fmt.Errorf("expected 3 nums, received %d", len(nums))
 		}
-		// TODO: ensure numbers are unique
-		ints := c.NewList[int](3)
+
+		ints := c.NewSet[int](3)
 		for _, str := range nums {
 			n, err := strconv.Atoi(str)
 			if err != nil {
 				return nil, err
 			}
-			ints.Append(n)
+			if n < 0 || n > 12 {
+				return nil, fmt.Errorf("%d is out of range", n)
+			}
+			ints.Add(n)
 		}
+
+		// Ensure numbers are unique
+		if ints.Size() != 3 {
+			return nil, fmt.Errorf("repeated numbers in %s", s)
+		}
+
 		return ints, nil
 	})
 	p.hand = p.hand.Filter(func(i int, _ Card) bool { return !toDump.Contains(i) })
