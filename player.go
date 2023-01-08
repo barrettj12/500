@@ -114,8 +114,8 @@ func (p *HumanPlayer) Bid() Bid {
 			return SuitBid{trumpSuit: Diamonds, tricks: promptTricks()}, nil
 		case "h":
 			return SuitBid{trumpSuit: Hearts, tricks: promptTricks()}, nil
-		// case "n":
-		// 	return NoTrumpsBid{}, nil
+		case "n":
+			return NoTrumpsBid{tricks: promptTricks()}, nil
 		// case "m":
 		// 	return MisereBid{}, nil
 		case "p":

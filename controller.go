@@ -150,6 +150,8 @@ func (ct *Controller) Play() {
 			card := E(ct.hands[playerNum].Remove(cardNum))
 			ct.trickHistory[trickNum].AddPlay(card)
 
+			// TODO: handle Joker lead in no trumps
+
 			// Notify players of played card
 			for i := 0; i < 4; i++ {
 				ct.players[i].NotifyPlay(playerNum, card)

@@ -190,6 +190,73 @@ func (b NoTrumpsBid) Value() int {
 	return 120 + 100*(b.tricks-6)
 }
 
+func (b NoTrumpsBid) Suit(c Card) Suit {
+	return c.suit
+}
+
+func (b NoTrumpsBid) CardOrder(leadCard Card) *c.List[Card] {
+	leadSuit := b.Suit(leadCard)
+	order := c.NewList[Card](12)
+	order.Append(
+		JokerCard,
+		Card{Ace, leadSuit},
+		Card{King, leadSuit},
+		Card{Queen, leadSuit},
+		Card{Jack, leadSuit},
+		Card{10, leadSuit},
+		Card{9, leadSuit},
+		Card{8, leadSuit},
+		Card{7, leadSuit},
+		Card{6, leadSuit},
+		Card{5, leadSuit},
+	)
+
+	lead4 := Card{4, leadSuit}
+	if getDeck().Contains(lead4) {
+		order.Append(lead4)
+	}
+
+	return order
+}
+
+func (b NoTrumpsBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+	valids := c.NewList[int](hand.Size())
+
+	for i, card := range *hand {
+		// TODO: fix Joker rules
+		if card == JokerCard {
+			valids.Append(i)
+			continue
+		}
+
+		if trick.Size() == 0 {
+			// Can lead with any card
+			valids.Append(i)
+			continue
+		}
+
+		// We have to follow suit if we can
+		leadCard := E(trick.Get(0))
+		leadSuit := b.Suit(leadCard)
+		if b.Suit(card) == leadSuit {
+			valids.Append(i)
+			continue
+		}
+
+		// Check if we can't follow suit: then we can play anything
+		numOfLeadSuit := hand.Count(func(_ int, c Card) bool {
+			return b.Suit(c) == leadSuit
+		})
+
+		if numOfLeadSuit == 0 {
+			valids.Append(i)
+			continue
+		}
+	}
+
+	return valids
+}
+
 func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 	hand.Sort(func(c, d Card) bool {
 		if c.rank == Joker {
@@ -218,6 +285,10 @@ func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 		}
 		return c.rank < d.rank
 	})
+}
+
+func (b NoTrumpsBid) Won(tricksWon int) bool {
+	return tricksWon >= b.tricks
 }
 
 type MisereBid struct {
