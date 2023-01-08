@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	c "github.com/barrettj12/collections"
 )
@@ -31,6 +32,7 @@ func (ct *Controller) Play() {
 	// Deal cards and notify each player of their hand
 	for i := 0; i < 4; i++ {
 		ct.hands[i] = E(deck.CopyPart(i*10, i*10+10))
+		NoTrumpsBid{}.SortHand(ct.hands[i])
 		ct.players[i].NotifyHand(ct.hands[i])
 	}
 	ct.kitty = E(deck.CopyPart(40, 43))
@@ -67,7 +69,7 @@ func (ct *Controller) Play() {
 				hasPassed.Set(bidder, true)
 				return bid, true
 			}
-			if bid.Value() > winningBid.Value() {
+			if winningBid == nil || bid.Value() > winningBid.Value() {
 				winningBid = bid
 				winningBidder = bidder
 				return bid, true
@@ -89,10 +91,14 @@ func (ct *Controller) Play() {
 	ct.contractor = winningBidder
 	for i := 0; i < 4; i++ {
 		ct.players[i].NotifyBidWinner(ct.contractor, ct.bid)
+		// Sort hand according to bid
+		ct.bid.SortHand(ct.hands[i])
+		ct.players[i].NotifyHand(ct.hands[i])
 	}
 
 	// Kitty
 	ct.hands[ct.contractor].Append(*ct.kitty...)
+	ct.bid.SortHand(ct.hands[ct.contractor])
 	ct.players[ct.contractor].NotifyHand(ct.hands[ct.contractor])
 
 	// Ask contractor to drop 3 cards from hand
@@ -109,6 +115,7 @@ func (ct *Controller) Play() {
 		return toDrop, true
 	})
 	ct.hands[ct.contractor] = ct.hands[ct.contractor].Filter(func(i int, _ Card) bool { return !toDrop.Contains(i) })
+	ct.players[ct.contractor].NotifyHand(ct.hands[ct.contractor])
 
 	// Play game
 	ct.leader = ct.contractor
@@ -119,13 +126,19 @@ func (ct *Controller) Play() {
 			playerNum := (i + ct.leader) % 4
 
 			validPlays := ct.bid.ValidPlays(ct.tricks[trickNum], ct.hands[playerNum])
-			cardNum := retryTillValid(func() (int, bool) {
-				cardNum := ct.players[playerNum].Play(
-					ct.tricks[trickNum], // trick so far
-					validPlays,
-				)
-				return cardNum, validPlays.Contains(cardNum)
-			})
+			var cardNum int
+			if validPlays.Size() == 1 {
+				time.Sleep(SLEEP)
+				cardNum = E(validPlays.Get(0))
+			} else {
+				cardNum = retryTillValid(func() (int, bool) {
+					cardNum := ct.players[playerNum].Play(
+						ct.tricks[trickNum], // trick so far
+						validPlays,
+					)
+					return cardNum, validPlays.Contains(cardNum)
+				})
+			}
 
 			card := E(ct.hands[playerNum].Remove(cardNum))
 			ct.tricks[trickNum].Append(card)

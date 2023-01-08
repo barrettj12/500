@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	c "github.com/barrettj12/collections"
 	"github.com/barrettj12/screen"
@@ -53,22 +54,29 @@ func (p *HumanPlayer) NotifyHand(hand *c.List[Card]) {
 }
 
 func (p *HumanPlayer) NotifyBid(player int, bid Bid) {
-	fmt.Printf("%s bid %s\n", playerNames[player], bid)
+	if (bid == Pass{}) {
+		fmt.Printf("%s passed\n", p.PlayerName(player))
+	} else {
+		fmt.Printf("%s bid %s\n", p.PlayerName(player), bid)
+	}
 }
 
 func (p *HumanPlayer) NotifyBidWinner(player int, bid Bid) {
-	fmt.Printf("%s won the bidding with %s\n", playerNames[player], bid)
+	p.bid = bid
+	fmt.Printf("%s won the bidding with %s\n", p.PlayerName(player), bid)
+	pressToContinue()
 }
 
 func (p *HumanPlayer) NotifyPlay(player int, card Card) {
 	p.Table[player] = card
 	p.redrawBoard()
-	fmt.Printf("%s played %s\n", playerNames[player], card)
+	// fmt.Printf("%s played %s\n", p.PlayerName(player), card)
 }
 
 func (p *HumanPlayer) NotifyTrickWinner(player int) {
-	fmt.Printf("%s won the trick\n", playerNames[player])
+	fmt.Printf("%s won the trick\n", p.PlayerName(player))
 	p.clearTable()
+	pressToContinue()
 }
 
 func (p *HumanPlayer) clearTable() {
@@ -145,10 +153,6 @@ func (p *HumanPlayer) Drop3() *c.Set[int] {
 }
 
 func (p *HumanPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
-	if validPlays.Size() == 1 {
-		return E(p.valid.Get(0))
-	}
-
 	// Show valid cards
 	p.valid = validPlays
 	defer func() { p.valid = nil }()
@@ -193,17 +197,22 @@ func prompt[T any](pr string, f func(string) (T, error)) T {
 	return res
 }
 
+func pressToContinue() {
+	fmt.Println("[press enter to continue]")
+	prompt("", func(s string) (int, error) { return 0, nil })
+}
+
 func (p *HumanPlayer) redrawBoard() {
 	screen.Clear()
 
 	tmpl := E(template.New("test").Parse(`
 Bid: {{.PrintBid}}
 
-        {{index playerNames 2}}
+        {{.PlayerName 2}}
         {{.FmtTable 2}}
-  {{index playerNames 1}}         {{index playerNames 3}}
+  {{.PlayerName 1}}         {{.PlayerName 3}}
   {{.FmtTable 1}}         {{.FmtTable 3}}
-        {{index playerNames 0}}
+        {{.PlayerName 0}}
         {{.FmtTable 0}}
 
 {{.PrintHand}}
@@ -214,13 +223,15 @@ Bid: {{.PrintBid}}
 	screen.Update()
 }
 
-var playerNames = []string{"You", "Op1", "Pnr", "Op2"}
+func (p *HumanPlayer) PlayerName(player int) string {
+	return []string{"You", "Op1", "Pnr", "Op2"}[player]
+}
 
 func (p *HumanPlayer) PrintBid() string {
 	if p.bid == nil {
 		return "—"
 	}
-	return fmt.Sprintf("%s by %s", p.bid, playerNames[p.bidder])
+	return fmt.Sprintf("%s by %s", p.bid, p.PlayerName(p.bidder))
 }
 
 // Returns player's card suitable for printing.
@@ -269,26 +280,30 @@ func (p *HumanPlayer) PrintHand() string {
 }
 
 // Plays a random (valid) card each round.
-type RandomPlayer struct{}
+type RandomPlayer struct {
+	delay time.Duration
+}
 
-func (r *RandomPlayer) NotifyHand(*c.List[Card])            {}
-func (r *RandomPlayer) NotifyBid(player int, bid Bid)       {}
-func (r *RandomPlayer) NotifyBidWinner(player int, bid Bid) {}
-func (r *RandomPlayer) NotifyPlay(player int, card Card)    {}
-func (r *RandomPlayer) NotifyTrickWinner(player int)        {}
-func (r *RandomPlayer) NotifyHandResult(res HandResult)     {}
+func (p *RandomPlayer) NotifyHand(*c.List[Card])            {}
+func (p *RandomPlayer) NotifyBid(player int, bid Bid)       {}
+func (p *RandomPlayer) NotifyBidWinner(player int, bid Bid) {}
+func (p *RandomPlayer) NotifyPlay(player int, card Card)    {}
+func (p *RandomPlayer) NotifyTrickWinner(player int)        {}
+func (p *RandomPlayer) NotifyHandResult(res HandResult)     {}
 
-func (r *RandomPlayer) Bid() Bid {
+func (p *RandomPlayer) Bid() Bid {
+	time.Sleep(p.delay)
 	// Random player doesn't bid
 	return Pass{}
 }
 
-func (r *RandomPlayer) Drop3() *c.Set[int] {
+func (p *RandomPlayer) Drop3() *c.Set[int] {
 	// Random player never wins bid, so we don't need to implement
 	panic("RandomPlayer.Drop3 unimplemented")
 }
 
-func (r *RandomPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+func (p *RandomPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+	time.Sleep(p.delay)
 	n := rand.Intn(validPlays.Size())
 	return E(validPlays.Get(n))
 }

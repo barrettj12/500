@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -15,97 +14,15 @@ func init() {
 }
 
 func main() {
-	g := new500Game()
-	g.redrawBoard()
-
-	// TODO: allow other players to bid
-	g.bidder = 0
-	g.bid = g.Players[0].Bid()
-	for _, p := range g.Players {
-		p.SetBid(g.bid)
+	ct := Controller{
+		players: [4]Player{
+			&HumanPlayer{},
+			&RandomPlayer{delay: SLEEP},
+			&RandomPlayer{delay: SLEEP},
+			&RandomPlayer{delay: SLEEP},
+		},
 	}
-	fmt.Println("bid: ", g.bid)
-	pressToContinue()
-
-	// Kitty
-	g.Players[g.bidder].AwardKitty(g.kitty)
-
-	for trickNum := 0; trickNum < 10; trickNum++ {
-		g.clearTable()
-		g.redrawBoard()
-		time.Sleep(SLEEP)
-
-		trick := c.NewList[Card](4)
-
-		for i := 0; i < 4; i++ {
-			playerNum := (i + g.leader) % 4
-			player := g.Players[playerNum]
-
-			card := player.Play(trick)
-			trick.Append(card)
-			g.Table.Set(playerNum, card)
-
-			g.redrawBoard()
-			time.Sleep(SLEEP)
-		}
-
-		// Determine winner
-		winner := g.whoWins()
-		g.leader = winner
-		if winner == 0 || winner == 2 {
-			g.tricksWon++
-		}
-
-		fmt.Println("winner: ", g.Players[winner].Name())
-		time.Sleep(SLEEP)
-		pressToContinue()
-	}
-
-	fmt.Printf("won %d tricks\n", g.tricksWon)
-	if g.bid.Won(g.tricksWon) {
-		fmt.Println("YOU WON!!!")
-	} else {
-		fmt.Println("You lost :(")
-	}
-}
-
-// gameState represents the current state of a 500 game
-type gameState struct {
-	Players [4]Player
-	Table   *c.List[Card]
-
-	kitty     *c.List[Card]
-	bid       Bid
-	bidder    int
-	tricksWon int
-	leader    int
-}
-
-func new500Game() *gameState {
-	deck := getDeck()
-	deck.Shuffle()
-
-	// Teams are (0, 2), (1, 3)
-	players := [4]Player{
-		nil,
-		NewRandomPlayer("Op1", E(deck.CopyPart(10, 20))),
-		NewRandomPlayer("Partner", E(deck.CopyPart(20, 30))),
-		NewRandomPlayer("Op2", E(deck.CopyPart(30, 40))),
-	}
-	// sortHand(players[0])
-
-	kitty := E(deck.CopyPart(40, 43))
-
-	g := &gameState{
-		Players:   players,
-		Table:     c.AsList(make([]Card, 4)),
-		kitty:     kitty,
-		tricksWon: 0,
-		leader:    0,
-	}
-	g.Players[0] = NewHumanPlayer("You", E(deck.CopyPart(0, 10)), g)
-	g.redrawBoard()
-	return g
+	ct.Play()
 }
 
 // Returns the 500 deck
@@ -124,11 +41,6 @@ func getDeck() *c.List[Card] {
 		{Ace, Spades}, {Ace, Clubs}, {Ace, Diamonds}, {Ace, Hearts},
 		JokerCard,
 	})
-}
-
-func pressToContinue() {
-	fmt.Println("[press enter to continue]")
-	prompt("", func(s string) (int, error) { return 0, nil })
 }
 
 // Utility functions

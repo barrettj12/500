@@ -237,9 +237,11 @@ type Pass struct{}
 
 // None of these functions should be called - they just ensure that Pass is a
 // Bid.
-func (p Pass) Value() int
-func (p Pass) Suit(Card) Suit
-func (p Pass) CardOrder(leadCard Card) *c.List[Card]
-func (p Pass) ValidPlays(trick, hand *c.List[Card]) *c.List[int]
-func (p Pass) SortHand(*c.List[Card])
-func (p Pass) Won(tricksWon int) bool
+func (p Pass) Value() int                            { panic("Pass.Value unimplemented") }
+func (p Pass) Suit(Card) Suit                        { panic("Pass.Suit unimplemented") }
+func (p Pass) CardOrder(leadCard Card) *c.List[Card] { panic("Pass.CardOrder unimplemented") }
+func (p Pass) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+	panic("Pass.ValidPlays unimplemented")
+}
+func (p Pass) SortHand(*c.List[Card]) { panic("Pass.SortHand unimplemented") }
+func (p Pass) Won(tricksWon int) bool { panic("Pass.Won unimplemented") }
