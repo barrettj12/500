@@ -75,8 +75,9 @@ func (p *HumanPlayer) NotifyPlay(player int, card Card) {
 
 func (p *HumanPlayer) NotifyTrickWinner(player int) {
 	fmt.Printf("%s won the trick\n", p.PlayerName(player))
-	p.clearTable()
 	pressToContinue()
+	p.clearTable()
+	p.redrawBoard()
 }
 
 func (p *HumanPlayer) clearTable() {
@@ -153,6 +154,7 @@ func (p *HumanPlayer) Drop3() *c.Set[int] {
 }
 
 func (p *HumanPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+	time.Sleep(SLEEP)
 	// Show valid cards
 	p.valid = validPlays
 	defer func() { p.valid = nil }()

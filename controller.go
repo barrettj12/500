@@ -18,9 +18,8 @@ type Controller struct {
 	bid        Bid
 	contractor int
 
-	leader    int
-	tricks    [10]*c.List[Card]
-	tricksWon [4]int
+	leader       int
+	trickHistory [10]trickInfo
 }
 
 // Play plays this game of 500.
@@ -50,7 +49,7 @@ func (ct *Controller) Play() {
 			continue
 		}
 
-		numPasses := hasPassed.Count(func(i int, b bool) bool { return b == true })
+		numPasses := hasPassed.Count(func(i int, b bool) bool { return b })
 		if numPasses == 4 {
 			// All players passed - re-deal
 			for i := 0; i < 4; i++ {
@@ -120,12 +119,12 @@ func (ct *Controller) Play() {
 	// Play game
 	ct.leader = ct.contractor
 	for trickNum := 0; trickNum < 10; trickNum++ {
-		ct.tricks[trickNum] = c.NewList[Card](4)
+		ct.trickHistory[trickNum] = newTrickInfo(ct.leader)
 
 		for i := 0; i < 4; i++ {
 			playerNum := (i + ct.leader) % 4
 
-			validPlays := ct.bid.ValidPlays(ct.tricks[trickNum], ct.hands[playerNum])
+			validPlays := ct.bid.ValidPlays(ct.trickHistory[trickNum].cards, ct.hands[playerNum])
 			var cardNum int
 			if validPlays.Size() == 1 {
 				time.Sleep(SLEEP)
@@ -133,7 +132,7 @@ func (ct *Controller) Play() {
 			} else {
 				cardNum = retryTillValid(func() (int, bool) {
 					cardNum := ct.players[playerNum].Play(
-						ct.tricks[trickNum], // trick so far
+						ct.trickHistory[trickNum].cards, // trick so far
 						validPlays,
 					)
 					return cardNum, validPlays.Contains(cardNum)
@@ -141,7 +140,7 @@ func (ct *Controller) Play() {
 			}
 
 			card := E(ct.hands[playerNum].Remove(cardNum))
-			ct.tricks[trickNum].Append(card)
+			ct.trickHistory[trickNum].AddPlay(card)
 
 			// Notify players of played card
 			for i := 0; i < 4; i++ {
@@ -151,8 +150,7 @@ func (ct *Controller) Play() {
 		}
 
 		// Determine winner
-		winner := ct.whoWins(trickNum)
-		ct.tricksWon[winner]++
+		winner := ct.trickHistory[trickNum].Winner(ct.bid)
 		ct.leader = winner
 
 		for i := 0; i < 4; i++ {
@@ -161,12 +159,18 @@ func (ct *Controller) Play() {
 	}
 
 	// Determine hand result
-	teamTricks := ct.tricksWon[ct.contractor] + ct.tricksWon[(ct.contractor+2)%4]
+	teamTricks := 0
+	for _, t := range ct.trickHistory {
+		if t.winner == ct.contractor || t.winner == (ct.contractor+2)%4 {
+			teamTricks++
+		}
+	}
+
 	var res HandResult
 	if ct.bid.Won(teamTricks) {
 		res = bidWon{ct.bid, teamTricks}
 	} else {
-		res = bidWon{ct.bid, teamTricks}
+		res = bidLost{ct.bid, teamTricks}
 	}
 
 	for i := 0; i < 4; i++ {
@@ -183,25 +187,6 @@ func retryTillValid[T any](f func() (T, bool)) T {
 			return t
 		}
 	}
-}
-
-func (ct *Controller) whoWins(trickNum int) int {
-	leadCard := E(ct.tricks[trickNum].Get(0))
-	order := ct.bid.CardOrder(leadCard)
-	winner := ct.leader // whoever lead wins by default
-
-	for _, card := range *order {
-		i, err := ct.tricks[trickNum].Find(card)
-		if err != nil {
-			// not found
-			continue
-		}
-
-		winner = i
-		break
-	}
-
-	return winner
 }
 
 // HandResult represents the outcome of a hand.
@@ -236,4 +221,42 @@ type bidLost struct {
 func (r bidLost) Info() string {
 	return fmt.Sprintf("Contractors lost their bid of %s with %d tricks",
 		r.bid, r.tricks)
+}
+
+// trickInfo holds information about a trick.
+type trickInfo struct {
+	leader int
+	cards  *c.List[Card]
+	winner int
+}
+
+func newTrickInfo(leader int) trickInfo {
+	return trickInfo{
+		leader: leader,
+		cards:  c.NewList[Card](4),
+	}
+}
+
+func (t *trickInfo) AddPlay(card Card) {
+	t.cards.Append(card)
+}
+
+func (t *trickInfo) Winner(bid Bid) int {
+	leadCard := E(t.cards.Get(0))
+	order := bid.CardOrder(leadCard)
+	var winner int
+
+	for _, card := range *order {
+		i, err := t.cards.Find(card)
+		if err != nil {
+			// not found
+			continue
+		}
+
+		winner = i
+		break
+	}
+
+	t.winner = (t.leader + winner) % 4
+	return t.winner
 }
