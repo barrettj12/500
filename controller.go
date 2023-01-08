@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	c "github.com/barrettj12/collections"
+	"github.com/kr/pretty"
 )
 
 // Controller handles the gameplay of a 500 game.
@@ -15,6 +17,7 @@ type Controller struct {
 
 	hands      [4]*c.List[Card]
 	kitty      *c.List[Card]
+	bidHistory []bidInfo
 	bid        Bid
 	contractor int
 
@@ -44,6 +47,7 @@ func (ct *Controller) Play() {
 	bidder := 0
 
 	for {
+		ct.writeGamestate()
 		if E(hasPassed.Get(bidder)) {
 			bidder = (bidder + 1) % 4
 			continue
@@ -76,6 +80,7 @@ func (ct *Controller) Play() {
 			// Otherwise, bid not valid, so we will ask again
 			return nil, false
 		})
+		ct.bidHistory = append(ct.bidHistory, bidInfo{bidder, newBid})
 
 		// Notify other players of bid
 		for i := 0; i < 4; i++ {
@@ -99,6 +104,7 @@ func (ct *Controller) Play() {
 	ct.hands[ct.contractor].Append(*ct.kitty...)
 	ct.bid.SortHand(ct.hands[ct.contractor])
 	ct.players[ct.contractor].NotifyHand(ct.hands[ct.contractor])
+	ct.writeGamestate()
 
 	// Ask contractor to drop 3 cards from hand
 	toDrop := retryTillValid(func() (*c.Set[int], bool) {
@@ -115,6 +121,7 @@ func (ct *Controller) Play() {
 	})
 	ct.hands[ct.contractor] = ct.hands[ct.contractor].Filter(func(i int, _ Card) bool { return !toDrop.Contains(i) })
 	ct.players[ct.contractor].NotifyHand(ct.hands[ct.contractor])
+	ct.writeGamestate()
 
 	// Play game
 	ct.leader = ct.contractor
@@ -147,6 +154,7 @@ func (ct *Controller) Play() {
 				ct.players[i].NotifyPlay(playerNum, card)
 			}
 			ct.players[playerNum].NotifyHand(ct.hands[playerNum])
+			ct.writeGamestate()
 		}
 
 		// Determine winner
@@ -156,6 +164,7 @@ func (ct *Controller) Play() {
 		for i := 0; i < 4; i++ {
 			ct.players[i].NotifyTrickWinner(winner)
 		}
+		ct.writeGamestate()
 	}
 
 	// Determine hand result
@@ -187,6 +196,10 @@ func retryTillValid[T any](f func() (T, bool)) T {
 			return t
 		}
 	}
+}
+
+func (ct *Controller) writeGamestate() {
+	os.WriteFile(".gamestate.log", []byte(pretty.Sprint(ct)), os.ModePerm)
 }
 
 // HandResult represents the outcome of a hand.
@@ -221,6 +234,12 @@ type bidLost struct {
 func (r bidLost) Info() string {
 	return fmt.Sprintf("Contractors lost their bid of %s with %d tricks",
 		r.bid, r.tricks)
+}
+
+// bidInfo holds information about a bid.
+type bidInfo struct {
+	player int
+	bid    Bid
 }
 
 // trickInfo holds information about a trick.
