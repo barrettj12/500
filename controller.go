@@ -48,10 +48,6 @@ func (ct *Controller) Play() {
 
 	for {
 		ct.writeGamestate()
-		if E(hasPassed.Get(bidder)) {
-			bidder = (bidder + 1) % 4
-			continue
-		}
 
 		numPasses := hasPassed.Count(func(i int, b bool) bool { return b })
 		if numPasses == 4 {
@@ -64,6 +60,11 @@ func (ct *Controller) Play() {
 		if winningBid != nil && numPasses == 3 {
 			// All other players have passed - bid is won
 			break
+		}
+
+		if E(hasPassed.Get(bidder)) {
+			bidder = (bidder + 1) % 4
+			continue
 		}
 
 		newBid := retryTillValid(func() (Bid, bool) {

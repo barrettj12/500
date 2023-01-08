@@ -91,38 +91,39 @@ func (p *HumanPlayer) NotifyHandResult(res HandResult) {
 }
 
 func (p *HumanPlayer) Bid() Bid {
-	suit := prompt("Enter bid [s/c/d/h]: ", func(s string) (Suit, error) {
+	promptTricks := func() int {
+		return prompt("Tricks [6-10]: ", func(s string) (int, error) {
+			i, err := strconv.Atoi(s)
+			if err != nil {
+				return 0, err
+			}
+			if i < 6 || i > 10 {
+				return 0, fmt.Errorf("invalid # of tricks %q", s)
+			}
+			return i, nil
+		})
+	}
+
+	return prompt("Enter bid [s/c/d/h/n/m/p]: ", func(s string) (Bid, error) {
 		switch s {
 		case "s":
-			return Spades, nil
+			return SuitBid{trumpSuit: Spades, tricks: promptTricks()}, nil
 		case "c":
-			return Clubs, nil
+			return SuitBid{trumpSuit: Clubs, tricks: promptTricks()}, nil
 		case "d":
-			return Diamonds, nil
+			return SuitBid{trumpSuit: Diamonds, tricks: promptTricks()}, nil
 		case "h":
-			return Hearts, nil
+			return SuitBid{trumpSuit: Hearts, tricks: promptTricks()}, nil
 		// case "n":
+		// 	return NoTrumpsBid{}, nil
 		// case "m":
+		// 	return MisereBid{}, nil
+		case "p":
+			return Pass{}, nil
 		default:
-			return "", fmt.Errorf("unknown bid %q", s)
+			return nil, fmt.Errorf("unknown bid %q", s)
 		}
 	})
-
-	tricks := prompt("Tricks [6-10]: ", func(s string) (int, error) {
-		i, err := strconv.Atoi(s)
-		if err != nil {
-			return 0, err
-		}
-		if i < 6 || i > 10 {
-			return 0, fmt.Errorf("invalid # of tricks %q", s)
-		}
-		return i, nil
-	})
-
-	return SuitBid{
-		tricks,
-		suit,
-	}
 }
 
 func (p *HumanPlayer) Drop3() *c.Set[int] {
