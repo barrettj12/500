@@ -10,7 +10,7 @@ type Bid interface {
 	Value() int
 	Suit(Card) Suit
 	CardOrder(leadCard Card) *c.List[Card]
-	ValidPlays(trick, hand *c.List[Card]) *c.List[int]
+	ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int]
 	SortHand(*c.List[Card])
 	Won(tricksWon int) bool
 }
@@ -109,7 +109,7 @@ func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
 }
 
 // Returns indices of valid plays in hand.
-func (b SuitBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+func (b SuitBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
 	valids := c.NewList[int](hand.Size())
 
 	for i, card := range *hand {
@@ -120,7 +120,7 @@ func (b SuitBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
 		}
 
 		// We have to follow suit if we can
-		leadCard := E(trick.Get(0))
+		leadCard := E(trick.Get(0)).card
 		leadSuit := b.Suit(leadCard)
 		if b.Suit(card) == leadSuit {
 			valids.Append(i)
@@ -219,7 +219,7 @@ func (b NoTrumpsBid) CardOrder(leadCard Card) *c.List[Card] {
 	return order
 }
 
-func (b NoTrumpsBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+func (b NoTrumpsBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
 	valids := c.NewList[int](hand.Size())
 
 	for i, card := range *hand {
@@ -236,7 +236,7 @@ func (b NoTrumpsBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
 		}
 
 		// We have to follow suit if we can
-		leadCard := E(trick.Get(0))
+		leadCard := E(trick.Get(0)).card
 		leadSuit := b.Suit(leadCard)
 		if b.Suit(card) == leadSuit {
 			valids.Append(i)
@@ -296,6 +296,13 @@ type MisereBid struct {
 	open bool
 }
 
+func (b MisereBid) String() string {
+	if b.open {
+		return "Open Misère"
+	}
+	return "Misère"
+}
+
 func (b MisereBid) Value() int {
 	if b.open {
 		return 500
@@ -303,11 +310,8 @@ func (b MisereBid) Value() int {
 	return 250
 }
 
-func (b MisereBid) String() string {
-	if b.open {
-		return "OpMis"
-	}
-	return "Mis"
+func (b MisereBid) Won(tricksWon int) bool {
+	return tricksWon == 0
 }
 
 // Pass is a special Bid used by the controller in the bidding round
@@ -319,7 +323,7 @@ type Pass struct{}
 func (p Pass) Value() int                            { panic("Pass.Value unimplemented") }
 func (p Pass) Suit(Card) Suit                        { panic("Pass.Suit unimplemented") }
 func (p Pass) CardOrder(leadCard Card) *c.List[Card] { panic("Pass.CardOrder unimplemented") }
-func (p Pass) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+func (p Pass) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
 	panic("Pass.ValidPlays unimplemented")
 }
 func (p Pass) SortHand(*c.List[Card]) { panic("Pass.SortHand unimplemented") }

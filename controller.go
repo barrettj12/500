@@ -131,8 +131,14 @@ func (ct *Controller) Play() {
 
 		for i := 0; i < 4; i++ {
 			playerNum := (i + ct.leader) % 4
+			if _, ok := ct.bid.(MisereBid); ok {
+				// Contractor's partner doesn't play in Misere
+				if playerNum == (ct.contractor+2)%4 {
+					continue
+				}
+			}
 
-			validPlays := ct.bid.ValidPlays(ct.trickHistory[trickNum].cards, ct.hands[playerNum])
+			validPlays := ct.bid.ValidPlays(ct.trickHistory[trickNum].plays, ct.hands[playerNum])
 			var cardNum int
 			if validPlays.Size() == 1 {
 				time.Sleep(SLEEP)
@@ -140,7 +146,7 @@ func (ct *Controller) Play() {
 			} else {
 				cardNum = retryTillValid(func() (int, bool) {
 					cardNum := ct.players[playerNum].Play(
-						ct.trickHistory[trickNum].cards, // trick so far
+						ct.trickHistory[trickNum].plays, // trick so far
 						validPlays,
 					)
 					return cardNum, validPlays.Contains(cardNum)
@@ -148,7 +154,7 @@ func (ct *Controller) Play() {
 			}
 
 			card := E(ct.hands[playerNum].Remove(cardNum))
-			ct.trickHistory[trickNum].AddPlay(card)
+			ct.trickHistory[trickNum].AddPlay(playerNum, card)
 
 			// TODO: handle Joker lead in no trumps
 
@@ -248,37 +254,43 @@ type bidInfo struct {
 // trickInfo holds information about a trick.
 type trickInfo struct {
 	leader int
-	cards  *c.List[Card]
+	plays  *c.List[playInfo]
 	winner int
 }
 
 func newTrickInfo(leader int) trickInfo {
 	return trickInfo{
 		leader: leader,
-		cards:  c.NewList[Card](4),
+		plays:  c.NewList[playInfo](4),
 	}
 }
 
-func (t *trickInfo) AddPlay(card Card) {
-	t.cards.Append(card)
+func (t *trickInfo) AddPlay(player int, card Card) {
+	t.plays.Append(playInfo{player: player, card: card})
 }
 
 func (t *trickInfo) Winner(bid Bid) int {
-	leadCard := E(t.cards.Get(0))
+	leadCard := E(t.plays.Get(0)).card
 	order := bid.CardOrder(leadCard)
 	var winner int
 
 	for _, card := range *order {
-		i, err := t.cards.Find(card)
+		p, err := t.plays.Filter(
+			func(i int, p playInfo) bool { return p.card == card }).Get(0)
 		if err != nil {
 			// not found
 			continue
 		}
 
-		winner = i
+		winner = p.player
 		break
 	}
 
-	t.winner = (t.leader + winner) % 4
+	t.winner = winner
 	return t.winner
+}
+
+type playInfo struct {
+	player int
+	card   Card
 }

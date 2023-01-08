@@ -34,7 +34,7 @@ type Player interface {
 	Drop3() *c.Set[int]
 	// Play asks the player to play a card on the given trick.
 	// The returned response must be an element of validPlays.
-	Play(trick *c.List[Card], validPlays *c.List[int]) int
+	Play(trick *c.List[playInfo], validPlays *c.List[int]) int
 }
 
 // HumanPlayer is a player controlled by the user.
@@ -103,6 +103,18 @@ func (p *HumanPlayer) Bid() Bid {
 			return i, nil
 		})
 	}
+	promptOpenMis := func() bool {
+		return prompt("Open [o] or closed [c]? ", func(s string) (bool, error) {
+			switch s {
+			case "o":
+				return true, nil
+			case "c":
+				return false, nil
+			default:
+				return false, fmt.Errorf(`expected "o" or "c", received %q`, s)
+			}
+		})
+	}
 
 	return prompt("Enter bid [s/c/d/h/n/m/p]: ", func(s string) (Bid, error) {
 		switch s {
@@ -116,8 +128,8 @@ func (p *HumanPlayer) Bid() Bid {
 			return SuitBid{trumpSuit: Hearts, tricks: promptTricks()}, nil
 		case "n":
 			return NoTrumpsBid{tricks: promptTricks()}, nil
-		// case "m":
-		// 	return MisereBid{}, nil
+		case "m":
+			return MisereBid{open: promptOpenMis()}, nil
 		case "p":
 			return Pass{}, nil
 		default:
@@ -154,7 +166,7 @@ func (p *HumanPlayer) Drop3() *c.Set[int] {
 	})
 }
 
-func (p *HumanPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+func (p *HumanPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) int {
 	time.Sleep(SLEEP)
 	// Show valid cards
 	p.valid = validPlays
@@ -305,7 +317,7 @@ func (p *RandomPlayer) Drop3() *c.Set[int] {
 	panic("RandomPlayer.Drop3 unimplemented")
 }
 
-func (p *RandomPlayer) Play(trick *c.List[Card], validPlays *c.List[int]) int {
+func (p *RandomPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) int {
 	time.Sleep(p.delay)
 	n := rand.Intn(validPlays.Size())
 	return E(validPlays.Get(n))
