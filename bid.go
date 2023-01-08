@@ -147,10 +147,8 @@ func (b SuitBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
 //	followed by trumps: [4] 5 6 7 8 9 10 Q K A LB J JOK
 func (b SuitBid) SortHand(hand *c.List[Card]) {
 	hand.Sort(func(c, d Card) bool {
-		suitOrder := map[Suit]int{Spades: 1, Clubs: 2, Diamonds: 3, Hearts: 4}
-		suitOrder[b.trumpSuit] = 5
-		suit1 := suitOrder[b.Suit(c)]
-		suit2 := suitOrder[b.Suit(d)]
+		suit1 := b.suitOrder(c)
+		suit2 := b.suitOrder(d)
 		if suit1 < suit2 {
 			return true
 		}
@@ -164,6 +162,16 @@ func (b SuitBid) SortHand(hand *c.List[Card]) {
 		i2 := E(cardOrder.Find(d))
 		return i1 > i2
 	})
+}
+
+// Returns a number determining the order of suits in the hand.
+func (b SuitBid) suitOrder(c Card) int {
+	return map[Suit]map[Suit]int{
+		Spades:   {Diamonds: 1, Clubs: 2, Hearts: 3, Spades: 4},
+		Clubs:    {Diamonds: 1, Spades: 2, Hearts: 3, Clubs: 4},
+		Diamonds: {Spades: 1, Hearts: 2, Clubs: 3, Diamonds: 4},
+		Hearts:   {Spades: 1, Diamonds: 2, Clubs: 3, Hearts: 4},
+	}[b.trumpSuit][b.Suit(c)]
 }
 
 func (s SuitBid) Won(tricksWon int) bool {
@@ -182,6 +190,73 @@ func (b NoTrumpsBid) Value() int {
 	return 120 + 100*(b.tricks-6)
 }
 
+func (b NoTrumpsBid) Suit(c Card) Suit {
+	return c.suit
+}
+
+func (b NoTrumpsBid) CardOrder(leadCard Card) *c.List[Card] {
+	leadSuit := b.Suit(leadCard)
+	order := c.NewList[Card](12)
+	order.Append(
+		JokerCard,
+		Card{Ace, leadSuit},
+		Card{King, leadSuit},
+		Card{Queen, leadSuit},
+		Card{Jack, leadSuit},
+		Card{10, leadSuit},
+		Card{9, leadSuit},
+		Card{8, leadSuit},
+		Card{7, leadSuit},
+		Card{6, leadSuit},
+		Card{5, leadSuit},
+	)
+
+	lead4 := Card{4, leadSuit}
+	if getDeck().Contains(lead4) {
+		order.Append(lead4)
+	}
+
+	return order
+}
+
+func (b NoTrumpsBid) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+	valids := c.NewList[int](hand.Size())
+
+	for i, card := range *hand {
+		// TODO: fix Joker rules
+		if card == JokerCard {
+			valids.Append(i)
+			continue
+		}
+
+		if trick.Size() == 0 {
+			// Can lead with any card
+			valids.Append(i)
+			continue
+		}
+
+		// We have to follow suit if we can
+		leadCard := E(trick.Get(0))
+		leadSuit := b.Suit(leadCard)
+		if b.Suit(card) == leadSuit {
+			valids.Append(i)
+			continue
+		}
+
+		// Check if we can't follow suit: then we can play anything
+		numOfLeadSuit := hand.Count(func(_ int, c Card) bool {
+			return b.Suit(c) == leadSuit
+		})
+
+		if numOfLeadSuit == 0 {
+			valids.Append(i)
+			continue
+		}
+	}
+
+	return valids
+}
+
 func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 	hand.Sort(func(c, d Card) bool {
 		if c.rank == Joker {
@@ -191,7 +266,7 @@ func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 			return true
 		}
 
-		suitOrder := map[Suit]int{Spades: 1, Clubs: 2, Diamonds: 3, Hearts: 4}
+		suitOrder := map[Suit]int{Spades: 1, Diamonds: 2, Clubs: 3, Hearts: 4}
 		suit1 := suitOrder[c.suit]
 		suit2 := suitOrder[d.suit]
 		if suit1 < suit2 {
@@ -212,6 +287,10 @@ func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 	})
 }
 
+func (b NoTrumpsBid) Won(tricksWon int) bool {
+	return tricksWon >= b.tricks
+}
+
 type MisereBid struct {
 	NoTrumpsBid
 	open bool
@@ -230,3 +309,18 @@ func (b MisereBid) String() string {
 	}
 	return "Mis"
 }
+
+// Pass is a special Bid used by the controller in the bidding round
+// to represent a Player passing.
+type Pass struct{}
+
+// None of these functions should be called - they just ensure that Pass is a
+// Bid.
+func (p Pass) Value() int                            { panic("Pass.Value unimplemented") }
+func (p Pass) Suit(Card) Suit                        { panic("Pass.Suit unimplemented") }
+func (p Pass) CardOrder(leadCard Card) *c.List[Card] { panic("Pass.CardOrder unimplemented") }
+func (p Pass) ValidPlays(trick, hand *c.List[Card]) *c.List[int] {
+	panic("Pass.ValidPlays unimplemented")
+}
+func (p Pass) SortHand(*c.List[Card]) { panic("Pass.SortHand unimplemented") }
+func (p Pass) Won(tricksWon int) bool { panic("Pass.Won unimplemented") }

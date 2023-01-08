@@ -1,16 +1,10 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"math/rand"
-	"os"
-	"text/template"
 	"time"
 
 	c "github.com/barrettj12/collections"
-	"github.com/barrettj12/screen"
-	"github.com/kr/pretty"
 )
 
 const SLEEP = 500 * time.Millisecond
@@ -20,97 +14,15 @@ func init() {
 }
 
 func main() {
-	g := new500Game()
-	g.redrawBoard()
-
-	// TODO: allow other players to bid
-	g.bidder = 0
-	g.bid = g.Players[0].Bid()
-	for _, p := range g.Players {
-		p.SetBid(g.bid)
+	ct := Controller{
+		players: [4]Player{
+			&HumanPlayer{},
+			&RandomPlayer{delay: SLEEP},
+			&RandomPlayer{delay: SLEEP},
+			&RandomPlayer{delay: SLEEP},
+		},
 	}
-	fmt.Println("bid: ", g.bid)
-	pressToContinue()
-
-	// Kitty
-	g.Players[g.bidder].AwardKitty(g.kitty)
-
-	for trickNum := 0; trickNum < 10; trickNum++ {
-		g.clearTable()
-		g.redrawBoard()
-		time.Sleep(SLEEP)
-
-		trick := c.NewList[Card](4)
-
-		for i := 0; i < 4; i++ {
-			playerNum := (i + g.leader) % 4
-			player := g.Players[playerNum]
-
-			card := player.Play(trick)
-			trick.Append(card)
-			g.Table.Set(playerNum, card)
-
-			g.redrawBoard()
-			time.Sleep(SLEEP)
-		}
-
-		// Determine winner
-		winner := g.whoWins()
-		g.leader = winner
-		if winner == 0 || winner == 2 {
-			g.tricksWon++
-		}
-
-		fmt.Println("winner: ", g.Players[winner].Name())
-		time.Sleep(SLEEP)
-		pressToContinue()
-	}
-
-	fmt.Printf("won %d tricks\n", g.tricksWon)
-	if g.bid.Won(g.tricksWon) {
-		fmt.Println("YOU WON!!!")
-	} else {
-		fmt.Println("You lost :(")
-	}
-}
-
-// gameState represents the current state of a 500 game
-type gameState struct {
-	Players [4]Player
-	Table   *c.List[Card]
-
-	kitty     *c.List[Card]
-	bid       Bid
-	bidder    int
-	tricksWon int
-	leader    int
-}
-
-func new500Game() *gameState {
-	deck := getDeck()
-	deck.Shuffle()
-
-	// Teams are (0, 2), (1, 3)
-	players := [4]Player{
-		nil,
-		NewRandomPlayer("Op1", E(deck.CopyPart(10, 20))),
-		NewRandomPlayer("Partner", E(deck.CopyPart(20, 30))),
-		NewRandomPlayer("Op2", E(deck.CopyPart(30, 40))),
-	}
-	// sortHand(players[0])
-
-	kitty := E(deck.CopyPart(40, 43))
-
-	g := &gameState{
-		Players:   players,
-		Table:     c.AsList(make([]Card, 4)),
-		kitty:     kitty,
-		tricksWon: 0,
-		leader:    0,
-	}
-	g.Players[0] = NewHumanPlayer("You", E(deck.CopyPart(0, 10)), g)
-	g.redrawBoard()
-	return g
+	ct.Play()
 }
 
 // Returns the 500 deck
@@ -129,142 +41,6 @@ func getDeck() *c.List[Card] {
 		{Ace, Spades}, {Ace, Clubs}, {Ace, Diamonds}, {Ace, Hearts},
 		JokerCard,
 	})
-}
-
-func (g *gameState) redrawBoard() {
-	screen.Clear()
-
-	tmpl := E(template.New("test").Parse(`
-Bid: {{.PrintBid}}
-
-      {{(index .Players 2).Name}}
-        {{.FmtTable 2}}
-  {{(index .Players 1).Name}}         {{(index .Players 3).Name}}
-  {{.FmtTable 1}}         {{.FmtTable 3}}
-        {{(index .Players 0).Name}}
-        {{.FmtTable 0}}
-
-{{.PrintHand}}
-
-`[1:]))
-
-	// Print to buffer first - less flickering?
-	E0(tmpl.Execute(screen.Writer(), g))
-	screen.Update()
-
-	// Write gamestate to file
-	os.WriteFile(".gamestate.log", []byte(pretty.Sprint(g)), os.ModePerm)
-}
-
-func (g *gameState) PrintBid() string {
-	if g.bid == nil {
-		return "—"
-	}
-	return fmt.Sprint(g.bid)
-}
-
-// Returns player's card suitable for printing.
-// Always has 3 characters.
-func FmtCard(card Card, grey bool) string {
-	if (card == Card{}) {
-		return "[_]"
-	}
-
-	var str string
-	if grey {
-		str = card.PrintGrey()
-	} else {
-		str = card.String()
-	}
-
-	if (card == JokerCard) || card.rank == 10 {
-		return str
-	}
-	return str + " "
-}
-
-func (g *gameState) FmtTable(player int) string {
-	card := E(g.Table.Get(player))
-	return FmtCard(card, false)
-}
-
-func (g *gameState) PrintHand() string {
-	str := ""
-	player := g.Players[0].(*HumanPlayer)
-	hand := player.hand
-
-	for i := 0; i < hand.Size(); i++ {
-		num := fmt.Sprintf("%-4d", i)
-		if player.valid != nil && !player.valid.Contains(i) {
-			num = grey(num)
-		}
-		str += num
-	}
-	str += "\n"
-	for i, card := range *hand {
-		grey := player.valid != nil && !player.valid.Contains(i)
-		c := FmtCard(card, grey)
-		str += c + " "
-	}
-
-	return str
-}
-
-// Prompt the user for input.
-// A function can be provided to validate and transform the given input.
-func prompt[T any](pr string, f func(string) (T, error)) T {
-	s := bufio.NewScanner(os.Stdin)
-	var res T
-
-	for {
-		fmt.Print(pr)
-		s.Scan()
-		if err := s.Err(); err != nil {
-			panic(err)
-		}
-
-		input := s.Text()
-		var err error
-		res, err = f(input)
-		if err == nil {
-			break
-		}
-
-		// Invalid input
-		fmt.Println(red(fmt.Sprintf("INVALID: %s", err)))
-	}
-
-	return res
-}
-
-func pressToContinue() {
-	fmt.Println("[press enter to continue]")
-	prompt("", func(s string) (int, error) { return 0, nil })
-}
-
-func (g *gameState) clearTable() {
-	for i := 0; i < 4; i++ {
-		g.Table.Set(i, Card{})
-	}
-}
-
-func (g *gameState) whoWins() int {
-	leadCard := E(g.Table.Get(g.leader))
-	order := g.bid.CardOrder(leadCard)
-	winner := g.leader // whoever lead wins by default
-
-	for _, card := range *order {
-		i, err := g.Table.Find(card)
-		if err != nil {
-			// not found
-			continue
-		}
-
-		winner = i
-		break
-	}
-
-	return winner
 }
 
 // Utility functions
