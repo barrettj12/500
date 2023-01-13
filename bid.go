@@ -180,6 +180,8 @@ func (s SuitBid) Won(tricksWon int) bool {
 
 type NoTrumpsBid struct {
 	tricks int
+	// Keep track of the Joker suit (if led) so others follow suit
+	jokerSuit Suit
 }
 
 func (b NoTrumpsBid) String() string {
@@ -191,6 +193,9 @@ func (b NoTrumpsBid) Value() int {
 }
 
 func (b NoTrumpsBid) Suit(c Card) Suit {
+	if b.jokerSuit != "" && c == JokerCard {
+		return b.jokerSuit
+	}
 	return c.suit
 }
 

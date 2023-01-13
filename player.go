@@ -22,6 +22,7 @@ import (
 //     they would like to play).
 type Player interface {
 	// Events
+	NotifyPlayerNum(int)
 	NotifyHand(*c.List[Card])
 	NotifyBid(player int, bid Bid)
 	NotifyBidWinner(player int, bid Bid)
@@ -35,6 +36,9 @@ type Player interface {
 	// Play asks the player to play a card on the given trick.
 	// The returned response must be an element of validPlays.
 	Play(trick *c.List[playInfo], validPlays *c.List[int]) int
+	// JokerSuit asks for a suit for the Joker when it is led in no trumps
+	// or misere.
+	JokerSuit() Suit
 }
 
 // HumanPlayer is a player controlled by the user.
@@ -47,6 +51,11 @@ type HumanPlayer struct {
 	bid    Bid
 	bidder int
 }
+
+// HumanPlayer implements Player.
+var _ Player = &HumanPlayer{}
+
+func (p *HumanPlayer) NotifyPlayerNum(int) {}
 
 func (p *HumanPlayer) NotifyHand(hand *c.List[Card]) {
 	p.Hand = hand
@@ -185,6 +194,23 @@ func (p *HumanPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) int
 	})
 }
 
+func (p *HumanPlayer) JokerSuit() Suit {
+	return prompt("Choose suit for Joker [s/c/d/h]: ", func(s string) (Suit, error) {
+		switch s {
+		case "s":
+			return Spades, nil
+		case "c":
+			return Clubs, nil
+		case "d":
+			return Diamonds, nil
+		case "h":
+			return Hearts, nil
+		default:
+			return "", fmt.Errorf("unknown suit %q", s)
+		}
+	})
+}
+
 // Prompt the user for input.
 // A function can be provided to validate and transform the given input.
 func prompt[T any](pr string, f func(string) (T, error)) T {
@@ -299,6 +325,10 @@ type RandomPlayer struct {
 	delay time.Duration
 }
 
+// Random implements Player.
+var _ Player = &RandomPlayer{}
+
+func (p *RandomPlayer) NotifyPlayerNum(int)                 {}
 func (p *RandomPlayer) NotifyHand(*c.List[Card])            {}
 func (p *RandomPlayer) NotifyBid(player int, bid Bid)       {}
 func (p *RandomPlayer) NotifyBidWinner(player int, bid Bid) {}
@@ -321,4 +351,9 @@ func (p *RandomPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) in
 	time.Sleep(p.delay)
 	n := rand.Intn(validPlays.Size())
 	return E(validPlays.Get(n))
+}
+
+func (p *RandomPlayer) JokerSuit() Suit {
+	time.Sleep(p.delay)
+	return []Suit{Spades, Clubs, Diamonds, Hearts}[rand.Intn(4)]
 }

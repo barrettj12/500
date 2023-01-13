@@ -27,6 +27,10 @@ type Controller struct {
 
 // Play plays this game of 500.
 func (ct *Controller) Play() {
+	for i := 0; i < 4; i++ {
+		ct.players[i].NotifyPlayerNum(i)
+	}
+
 	// Shuffle cards
 	deck := getDeck()
 	deck.Shuffle()
@@ -156,7 +160,18 @@ func (ct *Controller) Play() {
 			card := E(ct.hands[playerNum].Remove(cardNum))
 			ct.trickHistory[trickNum].AddPlay(playerNum, card)
 
-			// TODO: handle Joker lead in no trumps
+			// Handle Joker lead in no trumps / misere
+			// TODO: doesn't seem to be working
+			if card == JokerCard && playerNum == ct.leader {
+				switch b := ct.bid.(type) {
+				case *NoTrumpsBid:
+					jokerSuit := ct.players[playerNum].JokerSuit()
+					b.jokerSuit = jokerSuit
+				case *MisereBid:
+					jokerSuit := ct.players[playerNum].JokerSuit()
+					b.NoTrumpsBid.jokerSuit = jokerSuit
+				}
+			}
 
 			// Notify players of played card
 			for i := 0; i < 4; i++ {
