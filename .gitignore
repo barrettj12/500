@@ -1,2 +1,5 @@
 /.gamestate.log
 /.vscode/
+
+# Generated Protobuf files
+*.pb.go

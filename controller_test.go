@@ -10,10 +10,10 @@ import (
 func TestTrickInfoWinnerMisere(t *testing.T) {
 	tr := trickInfo{
 		leader: 3,
-		plays: c.AsList([]playInfo{
-			{player: 3, card: Card{1, Diamonds}},
-			{player: 0, card: Card{13, Spades}},
-			{player: 1, card: Card{5, Diamonds}},
+		plays: c.AsList([]PlayInfo{
+			{Player: 3, Card: Card{1, Diamonds}},
+			{Player: 0, Card: Card{13, Spades}},
+			{Player: 1, Card: Card{5, Diamonds}},
 		}),
 	}
 	assert.Equal(t, tr.Winner(MisereBid{}), 3)

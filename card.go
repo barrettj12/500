@@ -4,8 +4,8 @@ import "fmt"
 
 // Represents a playing card
 type Card struct {
-	rank Rank
-	suit Suit
+	Rank Rank
+	Suit Suit
 }
 
 var (
@@ -13,11 +13,11 @@ var (
 )
 
 func (c Card) String() string {
-	return c.rank.String() + c.suit.Symbol(true)
+	return c.Rank.String() + c.Suit.Symbol(true)
 }
 
 func (c Card) PrintGrey() string {
-	return grey(c.rank.String() + c.suit.Symbol(false))
+	return grey(c.Rank.String() + c.Suit.Symbol(false))
 }
 
 type Rank int

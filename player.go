@@ -35,7 +35,7 @@ type Player interface {
 	Drop3() *c.Set[int]
 	// Play asks the player to play a card on the given trick.
 	// The returned response must be an element of validPlays.
-	Play(trick *c.List[playInfo], validPlays *c.List[int]) int
+	Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int
 	// JokerSuit asks for a suit for the Joker when it is led in no trumps
 	// or misere.
 	JokerSuit() Suit
@@ -175,7 +175,7 @@ func (p *HumanPlayer) Drop3() *c.Set[int] {
 	})
 }
 
-func (p *HumanPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) int {
+func (p *HumanPlayer) Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int {
 	time.Sleep(SLEEP)
 	// Show valid cards
 	p.valid = validPlays
@@ -289,7 +289,7 @@ func FmtCard(card Card, grey bool) string {
 		str = card.String()
 	}
 
-	if (card == JokerCard) || card.rank == 10 {
+	if (card == JokerCard) || card.Rank == 10 {
 		return str
 	}
 	return str + " "
@@ -347,7 +347,7 @@ func (p *RandomPlayer) Drop3() *c.Set[int] {
 	panic("RandomPlayer.Drop3 unimplemented")
 }
 
-func (p *RandomPlayer) Play(trick *c.List[playInfo], validPlays *c.List[int]) int {
+func (p *RandomPlayer) Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int {
 	time.Sleep(p.delay)
 	n := rand.Intn(validPlays.Size())
 	return E(validPlays.Get(n))

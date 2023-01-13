@@ -10,7 +10,7 @@ type Bid interface {
 	Value() int
 	Suit(Card) Suit
 	CardOrder(leadCard Card) *c.List[Card]
-	ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int]
+	ValidPlays(trick *c.List[PlayInfo], hand *c.List[Card]) *c.List[int]
 	SortHand(*c.List[Card])
 	Won(tricksWon int) bool
 }
@@ -48,7 +48,7 @@ func (s SuitBid) Suit(c Card) Suit {
 	if c == JokerCard || c == s.lowBower() {
 		return s.trumpSuit
 	}
-	return c.suit
+	return c.Suit
 }
 
 // Returns the card order for the given lead suit and trump suit.
@@ -109,7 +109,7 @@ func (b SuitBid) CardOrder(leadCard Card) *c.List[Card] {
 }
 
 // Returns indices of valid plays in hand.
-func (b SuitBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
+func (b SuitBid) ValidPlays(trick *c.List[PlayInfo], hand *c.List[Card]) *c.List[int] {
 	valids := c.NewList[int](hand.Size())
 
 	for i, card := range *hand {
@@ -120,7 +120,7 @@ func (b SuitBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List
 		}
 
 		// We have to follow suit if we can
-		leadCard := E(trick.Get(0)).card
+		leadCard := E(trick.Get(0)).Card
 		leadSuit := b.Suit(leadCard)
 		if b.Suit(card) == leadSuit {
 			valids.Append(i)
@@ -196,7 +196,7 @@ func (b NoTrumpsBid) Suit(c Card) Suit {
 	if b.jokerSuit != "" && c == JokerCard {
 		return b.jokerSuit
 	}
-	return c.suit
+	return c.Suit
 }
 
 func (b NoTrumpsBid) CardOrder(leadCard Card) *c.List[Card] {
@@ -224,7 +224,7 @@ func (b NoTrumpsBid) CardOrder(leadCard Card) *c.List[Card] {
 	return order
 }
 
-func (b NoTrumpsBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
+func (b NoTrumpsBid) ValidPlays(trick *c.List[PlayInfo], hand *c.List[Card]) *c.List[int] {
 	valids := c.NewList[int](hand.Size())
 
 	for i, card := range *hand {
@@ -241,7 +241,7 @@ func (b NoTrumpsBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.
 		}
 
 		// We have to follow suit if we can
-		leadCard := E(trick.Get(0)).card
+		leadCard := E(trick.Get(0)).Card
 		leadSuit := b.Suit(leadCard)
 		if b.Suit(card) == leadSuit {
 			valids.Append(i)
@@ -264,16 +264,16 @@ func (b NoTrumpsBid) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.
 
 func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 	hand.Sort(func(c, d Card) bool {
-		if c.rank == Joker {
+		if c.Rank == Joker {
 			return false
 		}
-		if d.rank == Joker {
+		if d.Rank == Joker {
 			return true
 		}
 
 		suitOrder := map[Suit]int{Spades: 1, Diamonds: 2, Clubs: 3, Hearts: 4}
-		suit1 := suitOrder[c.suit]
-		suit2 := suitOrder[d.suit]
+		suit1 := suitOrder[c.Suit]
+		suit2 := suitOrder[d.Suit]
 		if suit1 < suit2 {
 			return true
 		}
@@ -282,13 +282,13 @@ func (b NoTrumpsBid) SortHand(hand *c.List[Card]) {
 		}
 
 		// Same suit - aces high
-		if c.rank == Ace {
+		if c.Rank == Ace {
 			return false
 		}
-		if d.rank == Ace {
+		if d.Rank == Ace {
 			return true
 		}
-		return c.rank < d.rank
+		return c.Rank < d.Rank
 	})
 }
 
@@ -328,7 +328,7 @@ type Pass struct{}
 func (p Pass) Value() int                            { panic("Pass.Value unimplemented") }
 func (p Pass) Suit(Card) Suit                        { panic("Pass.Suit unimplemented") }
 func (p Pass) CardOrder(leadCard Card) *c.List[Card] { panic("Pass.CardOrder unimplemented") }
-func (p Pass) ValidPlays(trick *c.List[playInfo], hand *c.List[Card]) *c.List[int] {
+func (p Pass) ValidPlays(trick *c.List[PlayInfo], hand *c.List[Card]) *c.List[int] {
 	panic("Pass.ValidPlays unimplemented")
 }
 func (p Pass) SortHand(*c.List[Card]) { panic("Pass.SortHand unimplemented") }

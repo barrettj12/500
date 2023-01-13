@@ -269,35 +269,35 @@ type bidInfo struct {
 // trickInfo holds information about a trick.
 type trickInfo struct {
 	leader int
-	plays  *c.List[playInfo]
+	plays  *c.List[PlayInfo]
 	winner int
 }
 
 func newTrickInfo(leader int) trickInfo {
 	return trickInfo{
 		leader: leader,
-		plays:  c.NewList[playInfo](4),
+		plays:  c.NewList[PlayInfo](4),
 	}
 }
 
 func (t *trickInfo) AddPlay(player int, card Card) {
-	t.plays.Append(playInfo{player: player, card: card})
+	t.plays.Append(PlayInfo{Player: player, Card: card})
 }
 
 func (t *trickInfo) Winner(bid Bid) int {
-	leadCard := E(t.plays.Get(0)).card
+	leadCard := E(t.plays.Get(0)).Card
 	order := bid.CardOrder(leadCard)
 	var winner int
 
 	for _, card := range *order {
 		p, err := t.plays.Filter(
-			func(i int, p playInfo) bool { return p.card == card }).Get(0)
+			func(i int, p PlayInfo) bool { return p.Card == card }).Get(0)
 		if err != nil {
 			// not found
 			continue
 		}
 
-		winner = p.player
+		winner = p.Player
 		break
 	}
 
@@ -305,7 +305,7 @@ func (t *trickInfo) Winner(bid Bid) int {
 	return t.winner
 }
 
-type playInfo struct {
-	player int
-	card   Card
+type PlayInfo struct {
+	Player int
+	Card   Card
 }
