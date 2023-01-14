@@ -3,33 +3,26 @@ package remote
 import (
 	"fmt"
 
-	main "github.com/barrettj12/500"
+	"github.com/barrettj12/500/card"
+	"github.com/barrettj12/500/game"
 
 	c "github.com/barrettj12/collections"
 )
 
 // encodeHand converts a *c.List[main.Card] to a *Hand.
-func encodeHand(list *c.List[main.Card]) *Hand {
-	cards := make([]*Card, 0, list.Size())
-	for _, c := range *list {
-		cards = append(cards, encodeCard(c))
-	}
+func encodeHand(list *c.List[card.Card]) *Hand {
 	return &Hand{
-		Hand: cards,
+		Hand: encodeList(list, encodeCard),
 	}
 }
 
 // decodeHand converts a *Hand to a *c.List[main.Card].
-func decodeHand(hand *Hand) *c.List[main.Card] {
-	list := c.NewList[main.Card](len(hand.Hand))
-	for _, c := range hand.Hand {
-		list.Append(decodeCard(c))
-	}
-	return list
+func decodeHand(hand *Hand) *c.List[card.Card] {
+	return decodeList(hand.Hand, decodeCard)
 }
 
 // encodeCard converts a main.Card to a *Card.
-func encodeCard(c main.Card) *Card {
+func encodeCard(c card.Card) *Card {
 	return &Card{
 		Rank: encodeRank(c.Rank),
 		Suit: encodeSuit(c.Suit),
@@ -37,35 +30,35 @@ func encodeCard(c main.Card) *Card {
 }
 
 // decodeCard converts a *Card to a main.Card.
-func decodeCard(c *Card) main.Card {
-	return main.Card{
+func decodeCard(c *Card) card.Card {
+	return card.Card{
 		Rank: decodeRank(c.Rank),
 		Suit: decodeSuit(c.Suit),
 	}
 }
 
 // encodeRank converts a main.Rank to a Rank.
-func encodeRank(r main.Rank) Rank {
+func encodeRank(r card.Rank) Rank {
 	return Rank(r)
 }
 
 // decodeRank converts a Rank to a main.Rank.
-func decodeRank(r Rank) main.Rank {
-	return main.Rank(r)
+func decodeRank(r Rank) card.Rank {
+	return card.Rank(r)
 }
 
 // encodeSuit converts a main.Suit to a Suit.
-func encodeSuit(s main.Suit) Suit {
+func encodeSuit(s card.Suit) Suit {
 	switch s {
-	case main.Spades:
+	case card.Spades:
 		return Suit_SPADES
-	case main.Clubs:
+	case card.Clubs:
 		return Suit_CLUBS
-	case main.Diamonds:
+	case card.Diamonds:
 		return Suit_DIAMONDS
-	case main.Hearts:
+	case card.Hearts:
 		return Suit_HEARTS
-	case main.NoSuit:
+	case card.NoSuit:
 		return Suit_NO_SUIT
 	default:
 		panic(fmt.Sprintf("unknown suit %q", s))
@@ -73,43 +66,35 @@ func encodeSuit(s main.Suit) Suit {
 }
 
 // decodeSuit converts a Suit to a main.Suit.
-func decodeSuit(s Suit) main.Suit {
+func decodeSuit(s Suit) card.Suit {
 	switch s {
 	case Suit_NO_SUIT:
-		return main.NoSuit
+		return card.NoSuit
 	case Suit_SPADES:
-		return main.Spades
+		return card.Spades
 	case Suit_CLUBS:
-		return main.Clubs
+		return card.Clubs
 	case Suit_DIAMONDS:
-		return main.Diamonds
+		return card.Diamonds
 	case Suit_HEARTS:
-		return main.Hearts
+		return card.Hearts
 	default:
 		panic(fmt.Sprintf("unknown suit %q", s))
 	}
 }
 
 // encodeTrick converts a *c.List[main.PlayInfo] to a []*PlayInfo.
-func encodeTrick(list *c.List[main.PlayInfo]) []*PlayInfo {
-	out := make([]*PlayInfo, 0, list.Size())
-	for _, pi := range *list {
-		out = append(out, encodePlayInfo(pi))
-	}
-	return out
+func encodeTrick(list *c.List[game.PlayInfo]) []*PlayInfo {
+	return encodeList(list, encodePlayInfo)
 }
 
 // decodeTrick converts a []*PlayInfo to a *c.List[main.PlayInfo].
-func decodeTrick(trick []*PlayInfo) *c.List[main.PlayInfo] {
-	list := c.NewList[main.PlayInfo](len(trick))
-	for _, pi := range trick {
-		list.Append(decodePlayInfo(pi))
-	}
-	return list
+func decodeTrick(trick []*PlayInfo) *c.List[game.PlayInfo] {
+	return decodeList(trick, decodePlayInfo)
 }
 
 // encodePlayInfo converts a main.PlayInfo to a *PlayInfo.
-func encodePlayInfo(pi main.PlayInfo) *PlayInfo {
+func encodePlayInfo(pi game.PlayInfo) *PlayInfo {
 	return &PlayInfo{
 		Player: int32(pi.Player),
 		Card:   encodeCard(pi.Card),
@@ -117,8 +102,8 @@ func encodePlayInfo(pi main.PlayInfo) *PlayInfo {
 }
 
 // decodePlayInfo converts a *PlayInfo to a main.PlayInfo.
-func decodePlayInfo(pi *PlayInfo) main.PlayInfo {
-	return main.PlayInfo{
+func decodePlayInfo(pi *PlayInfo) game.PlayInfo {
+	return game.PlayInfo{
 		Player: int(pi.Player),
 		Card:   decodeCard(pi.Card),
 	}
@@ -126,18 +111,30 @@ func decodePlayInfo(pi *PlayInfo) main.PlayInfo {
 
 // encodeValidPlays converts a *c.List[int] to a []int32.
 func encodeValidPlays(list *c.List[int]) []int32 {
-	out := make([]int32, 0, list.Size())
-	for _, n := range *list {
-		out = append(out, int32(n))
-	}
-	return out
+	return encodeList(list, func(n int) int32 { return int32(n) })
 }
 
 // decodeValidPlays converts an []int32 to a *c.List[int].
 func decodeValidPlays(vp []int32) *c.List[int] {
-	list := c.NewList[int](len(vp))
-	for _, n := range vp {
-		list.Append(int(n))
+	return decodeList(vp, func(n int32) int { return int(n) })
+}
+
+// encodeList converts a *c.List[T] to a []U, using the specified conversion
+// function f : T -> U.
+func encodeList[T comparable, U any](list *c.List[T], f func(T) U) []U {
+	out := make([]U, 0, list.Size())
+	for _, t := range *list {
+		out = append(out, f(t))
+	}
+	return out
+}
+
+// decodeList converts a []U to a *c.List[T], using the specified conversion
+// function f : U -> T.
+func decodeList[T comparable, U any](arr []U, f func(U) T) *c.List[T] {
+	list := c.NewList[T](len(arr))
+	for _, u := range arr {
+		list.Append(f(u))
 	}
 	return list
 }

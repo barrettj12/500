@@ -3,7 +3,9 @@ package remote
 import (
 	context "context"
 
-	main "github.com/barrettj12/500"
+	"github.com/barrettj12/500/card"
+	"github.com/barrettj12/500/game"
+	main "github.com/barrettj12/500/player"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -26,7 +28,7 @@ func (p *RemotePlayer) NotifyPlayerNum(playerNum int) {
 	panicIfNotNil(err)
 }
 
-func (p *RemotePlayer) NotifyHand(hand *c.List[main.Card]) {
+func (p *RemotePlayer) NotifyHand(hand *c.List[card.Card]) {
 	_, err := p.client.NotifyHand(
 		context.Background(),
 		encodeHand(hand),
@@ -34,10 +36,10 @@ func (p *RemotePlayer) NotifyHand(hand *c.List[main.Card]) {
 	panicIfNotNil(err)
 }
 
-func (p *RemotePlayer) NotifyBid(player int, bid main.Bid)       {}
-func (p *RemotePlayer) NotifyBidWinner(player int, bid main.Bid) {}
+func (p *RemotePlayer) NotifyBid(player int, bid game.Bid)       {}
+func (p *RemotePlayer) NotifyBidWinner(player int, bid game.Bid) {}
 
-func (p *RemotePlayer) NotifyPlay(player int, card main.Card) {
+func (p *RemotePlayer) NotifyPlay(player int, card card.Card) {
 	_, err := p.client.NotifyPlay(
 		context.Background(),
 		&PlayInfo{
@@ -56,11 +58,11 @@ func (p *RemotePlayer) NotifyTrickWinner(player int) {
 	panicIfNotNil(err)
 }
 
-func (p *RemotePlayer) NotifyHandResult(res main.HandResult) {}
+func (p *RemotePlayer) NotifyHandResult(res game.HandResult) {}
 
-func (p *RemotePlayer) Bid() main.Bid {
+func (p *RemotePlayer) Bid() game.Bid {
 	// TODO: implement properly
-	return main.Pass{}
+	return game.Pass{}
 }
 
 func (p *RemotePlayer) Drop3() *c.Set[int] {
@@ -69,7 +71,7 @@ func (p *RemotePlayer) Drop3() *c.Set[int] {
 	panic("RemotePlayer.Drop3 not implemented")
 }
 
-func (p *RemotePlayer) Play(trick *c.List[main.PlayInfo], validPlays *c.List[int]) int {
+func (p *RemotePlayer) Play(trick *c.List[game.PlayInfo], validPlays *c.List[int]) int {
 	resp, err := p.client.Play(
 		context.Background(),
 		&PlayRequest{
@@ -81,7 +83,7 @@ func (p *RemotePlayer) Play(trick *c.List[main.PlayInfo], validPlays *c.List[int
 	return int(resp.Value)
 }
 
-func (p *RemotePlayer) JokerSuit() main.Suit {
+func (p *RemotePlayer) JokerSuit() card.Suit {
 	// TODO: implement properly
 	panic("RemotePlayer.Drop3 not implemented")
 }

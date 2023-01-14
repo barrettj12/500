@@ -1,6 +1,10 @@
-package main
+package card
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/barrettj12/500/util"
+)
 
 // Represents a playing card
 type Card struct {
@@ -9,7 +13,7 @@ type Card struct {
 }
 
 var (
-	JokerCard Card = Card{Joker, NoSuit}
+	JokerCard = Card{Joker, NoSuit}
 )
 
 func (c Card) String() string {
@@ -17,7 +21,7 @@ func (c Card) String() string {
 }
 
 func (c Card) PrintGrey() string {
-	return grey(c.Rank.String() + c.Suit.Symbol(false))
+	return util.Grey(c.Rank.String() + c.Suit.Symbol(false))
 }
 
 type Rank int
@@ -66,25 +70,15 @@ func (s Suit) Symbol(colour bool) string {
 		return "♣"
 	case Diamonds:
 		if colour {
-			return red("♦")
+			return util.Red("♦")
 		}
 		return "♦"
 	case Hearts:
 		if colour {
-			return red("♥")
+			return util.Red("♥")
 		}
 		return "♥"
 	default:
 		return string(s)
 	}
-}
-
-// Coloured printing
-
-func red(s string) string {
-	return fmt.Sprintf("\u001b[31m%s\u001b[0m", s)
-}
-
-func grey(s string) string {
-	return fmt.Sprintf("\033[38;2;200;200;200m%s\033[0m", s)
 }
