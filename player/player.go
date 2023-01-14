@@ -1,4 +1,4 @@
-package main
+package player
 
 import (
 	"bufio"
@@ -9,6 +9,10 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/barrettj12/500/card"
+	"github.com/barrettj12/500/game"
+	"github.com/barrettj12/500/util"
 
 	c "github.com/barrettj12/collections"
 	"github.com/barrettj12/screen"
@@ -23,32 +27,32 @@ import (
 type Player interface {
 	// Events
 	NotifyPlayerNum(int)
-	NotifyHand(*c.List[Card])
-	NotifyBid(player int, bid Bid)
-	NotifyBidWinner(player int, bid Bid)
-	NotifyPlay(player int, card Card)
+	NotifyHand(*c.List[card.Card])
+	NotifyBid(player int, bid game.Bid)
+	NotifyBidWinner(player int, bid game.Bid)
+	NotifyPlay(player int, card card.Card)
 	NotifyTrickWinner(player int)
-	NotifyHandResult(res HandResult)
+	NotifyHandResult(res game.HandResult)
 
 	// Requests
-	Bid() Bid
+	Bid() game.Bid
 	Drop3() *c.Set[int]
 	// Play asks the player to play a card on the given trick.
 	// The returned response must be an element of validPlays.
-	Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int
+	Play(trick *c.List[game.PlayInfo], validPlays *c.List[int]) int
 	// JokerSuit asks for a suit for the Joker when it is led in no trumps
 	// or misere.
-	JokerSuit() Suit
+	JokerSuit() card.Suit
 }
 
 // HumanPlayer is a player controlled by the user.
 // It controls printing of the table state to the terminal.
 type HumanPlayer struct {
-	Hand  *c.List[Card]
-	Table [4]Card
+	Hand  *c.List[card.Card]
+	Table [4]card.Card
 	valid *c.List[int]
 
-	bid    Bid
+	bid    game.Bid
 	bidder int
 }
 
@@ -57,26 +61,26 @@ var _ Player = &HumanPlayer{}
 
 func (p *HumanPlayer) NotifyPlayerNum(int) {}
 
-func (p *HumanPlayer) NotifyHand(hand *c.List[Card]) {
+func (p *HumanPlayer) NotifyHand(hand *c.List[card.Card]) {
 	p.Hand = hand
 	p.redrawBoard()
 }
 
-func (p *HumanPlayer) NotifyBid(player int, bid Bid) {
-	if (bid == Pass{}) {
+func (p *HumanPlayer) NotifyBid(player int, b game.Bid) {
+	if (b == game.Pass{}) {
 		fmt.Printf("%s passed\n", p.PlayerName(player))
 	} else {
-		fmt.Printf("%s bid %s\n", p.PlayerName(player), bid)
+		fmt.Printf("%s bid %s\n", p.PlayerName(player), b)
 	}
 }
 
-func (p *HumanPlayer) NotifyBidWinner(player int, bid Bid) {
+func (p *HumanPlayer) NotifyBidWinner(player int, bid game.Bid) {
 	p.bid = bid
 	fmt.Printf("%s won the bidding with %s\n", p.PlayerName(player), bid)
 	pressToContinue()
 }
 
-func (p *HumanPlayer) NotifyPlay(player int, card Card) {
+func (p *HumanPlayer) NotifyPlay(player int, card card.Card) {
 	p.Table[player] = card
 	p.redrawBoard()
 	// fmt.Printf("%s played %s\n", p.PlayerName(player), card)
@@ -91,15 +95,15 @@ func (p *HumanPlayer) NotifyTrickWinner(player int) {
 
 func (p *HumanPlayer) clearTable() {
 	for i := 0; i < 4; i++ {
-		p.Table[i] = Card{}
+		p.Table[i] = card.Card{}
 	}
 }
 
-func (p *HumanPlayer) NotifyHandResult(res HandResult) {
+func (p *HumanPlayer) NotifyHandResult(res game.HandResult) {
 	fmt.Println(res.Info())
 }
 
-func (p *HumanPlayer) Bid() Bid {
+func (p *HumanPlayer) Bid() game.Bid {
 	promptTricks := func() int {
 		return prompt("Tricks [6-10]: ", func(s string) (int, error) {
 			i, err := strconv.Atoi(s)
@@ -125,22 +129,22 @@ func (p *HumanPlayer) Bid() Bid {
 		})
 	}
 
-	return prompt("Enter bid [s/c/d/h/n/m/p]: ", func(s string) (Bid, error) {
+	return prompt("Enter bid [s/c/d/h/n/m/p]: ", func(s string) (game.Bid, error) {
 		switch s {
 		case "s":
-			return SuitBid{trumpSuit: Spades, tricks: promptTricks()}, nil
+			return game.SuitBid{TrumpSuit: card.Spades, Tricks: promptTricks()}, nil
 		case "c":
-			return SuitBid{trumpSuit: Clubs, tricks: promptTricks()}, nil
+			return game.SuitBid{TrumpSuit: card.Clubs, Tricks: promptTricks()}, nil
 		case "d":
-			return SuitBid{trumpSuit: Diamonds, tricks: promptTricks()}, nil
+			return game.SuitBid{TrumpSuit: card.Diamonds, Tricks: promptTricks()}, nil
 		case "h":
-			return SuitBid{trumpSuit: Hearts, tricks: promptTricks()}, nil
+			return game.SuitBid{TrumpSuit: card.Hearts, Tricks: promptTricks()}, nil
 		case "n":
-			return NoTrumpsBid{tricks: promptTricks()}, nil
+			return game.NoTrumpsBid{Tricks: promptTricks()}, nil
 		case "m":
-			return MisereBid{open: promptOpenMis()}, nil
+			return game.MisereBid{Open: promptOpenMis()}, nil
 		case "p":
-			return Pass{}, nil
+			return game.Pass{}, nil
 		default:
 			return nil, fmt.Errorf("unknown bid %q", s)
 		}
@@ -175,7 +179,7 @@ func (p *HumanPlayer) Drop3() *c.Set[int] {
 	})
 }
 
-func (p *HumanPlayer) Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int {
+func (p *HumanPlayer) Play(trick *c.List[game.PlayInfo], validPlays *c.List[int]) int {
 	time.Sleep(SLEEP)
 	// Show valid cards
 	p.valid = validPlays
@@ -194,17 +198,17 @@ func (p *HumanPlayer) Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int
 	})
 }
 
-func (p *HumanPlayer) JokerSuit() Suit {
-	return prompt("Choose suit for Joker [s/c/d/h]: ", func(s string) (Suit, error) {
+func (p *HumanPlayer) JokerSuit() card.Suit {
+	return prompt("Choose suit for Joker [s/c/d/h]: ", func(s string) (card.Suit, error) {
 		switch s {
 		case "s":
-			return Spades, nil
+			return card.Spades, nil
 		case "c":
-			return Clubs, nil
+			return card.Clubs, nil
 		case "d":
-			return Diamonds, nil
+			return card.Diamonds, nil
 		case "h":
-			return Hearts, nil
+			return card.Hearts, nil
 		default:
 			return "", fmt.Errorf("unknown suit %q", s)
 		}
@@ -232,7 +236,7 @@ func prompt[T any](pr string, f func(string) (T, error)) T {
 		}
 
 		// Invalid input
-		fmt.Println(red(fmt.Sprintf("INVALID: %s", err)))
+		fmt.Println(util.Red(fmt.Sprintf("INVALID: %s", err)))
 	}
 
 	return res
@@ -246,7 +250,7 @@ func pressToContinue() {
 func (p *HumanPlayer) redrawBoard() {
 	screen.Clear()
 
-	tmpl := E(template.New("test").Parse(`
+	tmpl := util.E(template.New("test").Parse(`
 Bid: {{.PrintBid}}
 
         {{.PlayerName 2}}
@@ -260,7 +264,7 @@ Bid: {{.PrintBid}}
 
 `[1:]))
 
-	E0(tmpl.Execute(screen.Writer(), p))
+	util.E0(tmpl.Execute(screen.Writer(), p))
 	screen.Update()
 }
 
@@ -277,19 +281,19 @@ func (p *HumanPlayer) PrintBid() string {
 
 // Returns player's card suitable for printing.
 // Always has 3 characters.
-func FmtCard(card Card, grey bool) string {
-	if (card == Card{}) {
+func FmtCard(c card.Card, grey bool) string {
+	if (c == card.Card{}) {
 		return "[_]"
 	}
 
 	var str string
 	if grey {
-		str = card.PrintGrey()
+		str = c.PrintGrey()
 	} else {
-		str = card.String()
+		str = c.String()
 	}
 
-	if (card == JokerCard) || card.Rank == 10 {
+	if (c == card.JokerCard) || c.Rank == 10 {
 		return str
 	}
 	return str + " "
@@ -306,7 +310,7 @@ func (p *HumanPlayer) PrintHand() string {
 	for i := 0; i < p.Hand.Size(); i++ {
 		num := fmt.Sprintf("%-4d", i)
 		if p.valid != nil && !p.valid.Contains(i) {
-			num = grey(num)
+			num = util.Grey(num)
 		}
 		str += num
 	}
@@ -322,24 +326,24 @@ func (p *HumanPlayer) PrintHand() string {
 
 // Plays a random (valid) card each round.
 type RandomPlayer struct {
-	delay time.Duration
+	Delay time.Duration
 }
 
 // Random implements Player.
 var _ Player = &RandomPlayer{}
 
-func (p *RandomPlayer) NotifyPlayerNum(int)                 {}
-func (p *RandomPlayer) NotifyHand(*c.List[Card])            {}
-func (p *RandomPlayer) NotifyBid(player int, bid Bid)       {}
-func (p *RandomPlayer) NotifyBidWinner(player int, bid Bid) {}
-func (p *RandomPlayer) NotifyPlay(player int, card Card)    {}
-func (p *RandomPlayer) NotifyTrickWinner(player int)        {}
-func (p *RandomPlayer) NotifyHandResult(res HandResult)     {}
+func (p *RandomPlayer) NotifyPlayerNum(int)                      {}
+func (p *RandomPlayer) NotifyHand(*c.List[card.Card])            {}
+func (p *RandomPlayer) NotifyBid(player int, bid game.Bid)       {}
+func (p *RandomPlayer) NotifyBidWinner(player int, bid game.Bid) {}
+func (p *RandomPlayer) NotifyPlay(player int, card card.Card)    {}
+func (p *RandomPlayer) NotifyTrickWinner(player int)             {}
+func (p *RandomPlayer) NotifyHandResult(res game.HandResult)     {}
 
-func (p *RandomPlayer) Bid() Bid {
-	time.Sleep(p.delay)
+func (p *RandomPlayer) Bid() game.Bid {
+	time.Sleep(p.Delay)
 	// Random player doesn't bid
-	return Pass{}
+	return game.Pass{}
 }
 
 func (p *RandomPlayer) Drop3() *c.Set[int] {
@@ -347,13 +351,15 @@ func (p *RandomPlayer) Drop3() *c.Set[int] {
 	panic("RandomPlayer.Drop3 unimplemented")
 }
 
-func (p *RandomPlayer) Play(trick *c.List[PlayInfo], validPlays *c.List[int]) int {
-	time.Sleep(p.delay)
+func (p *RandomPlayer) Play(trick *c.List[game.PlayInfo], validPlays *c.List[int]) int {
+	time.Sleep(p.Delay)
 	n := rand.Intn(validPlays.Size())
-	return E(validPlays.Get(n))
+	return util.E(validPlays.Get(n))
 }
 
-func (p *RandomPlayer) JokerSuit() Suit {
-	time.Sleep(p.delay)
-	return []Suit{Spades, Clubs, Diamonds, Hearts}[rand.Intn(4)]
+func (p *RandomPlayer) JokerSuit() card.Suit {
+	time.Sleep(p.Delay)
+	return []card.Suit{card.Spades, card.Clubs, card.Diamonds, card.Hearts}[rand.Intn(4)]
 }
+
+const SLEEP = 500 * time.Millisecond
