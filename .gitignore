@@ -1,4 +1,5 @@
 /.gamestate.log
+/.idea/
 /.vscode/
 
 # Generated Protobuf files
