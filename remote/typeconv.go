@@ -11,22 +11,14 @@ import (
 
 // encodeHand converts a *c.List[main.Card] to a *Hand.
 func encodeHand(list *c.List[card.Card]) *Hand {
-	cards := make([]*Card, 0, list.Size())
-	for _, c := range *list {
-		cards = append(cards, encodeCard(c))
-	}
 	return &Hand{
-		Hand: cards,
+		Hand: encodeList(list, encodeCard),
 	}
 }
 
 // decodeHand converts a *Hand to a *c.List[main.Card].
 func decodeHand(hand *Hand) *c.List[card.Card] {
-	list := c.NewList[card.Card](len(hand.Hand))
-	for _, c := range hand.Hand {
-		list.Append(decodeCard(c))
-	}
-	return list
+	return decodeList(hand.Hand, decodeCard)
 }
 
 // encodeCard converts a main.Card to a *Card.
@@ -93,20 +85,12 @@ func decodeSuit(s Suit) card.Suit {
 
 // encodeTrick converts a *c.List[main.PlayInfo] to a []*PlayInfo.
 func encodeTrick(list *c.List[game.PlayInfo]) []*PlayInfo {
-	out := make([]*PlayInfo, 0, list.Size())
-	for _, pi := range *list {
-		out = append(out, encodePlayInfo(pi))
-	}
-	return out
+	return encodeList(list, encodePlayInfo)
 }
 
 // decodeTrick converts a []*PlayInfo to a *c.List[main.PlayInfo].
 func decodeTrick(trick []*PlayInfo) *c.List[game.PlayInfo] {
-	list := c.NewList[game.PlayInfo](len(trick))
-	for _, pi := range trick {
-		list.Append(decodePlayInfo(pi))
-	}
-	return list
+	return decodeList(trick, decodePlayInfo)
 }
 
 // encodePlayInfo converts a main.PlayInfo to a *PlayInfo.
@@ -127,18 +111,30 @@ func decodePlayInfo(pi *PlayInfo) game.PlayInfo {
 
 // encodeValidPlays converts a *c.List[int] to a []int32.
 func encodeValidPlays(list *c.List[int]) []int32 {
-	out := make([]int32, 0, list.Size())
-	for _, n := range *list {
-		out = append(out, int32(n))
-	}
-	return out
+	return encodeList(list, func(n int) int32 { return int32(n) })
 }
 
 // decodeValidPlays converts an []int32 to a *c.List[int].
 func decodeValidPlays(vp []int32) *c.List[int] {
-	list := c.NewList[int](len(vp))
-	for _, n := range vp {
-		list.Append(int(n))
+	return decodeList(vp, func(n int32) int { return int(n) })
+}
+
+// encodeList converts a *c.List[T] to a []U, using the specified conversion
+// function f : T -> U.
+func encodeList[T comparable, U any](list *c.List[T], f func(T) U) []U {
+	out := make([]U, 0, list.Size())
+	for _, t := range *list {
+		out = append(out, f(t))
+	}
+	return out
+}
+
+// decodeList converts a []U to a *c.List[T], using the specified conversion
+// function f : U -> T.
+func decodeList[T comparable, U any](arr []U, f func(U) T) *c.List[T] {
+	list := c.NewList[T](len(arr))
+	for _, u := range arr {
+		list.Append(f(u))
 	}
 	return list
 }
