@@ -4,6 +4,7 @@ import (
 	context "context"
 
 	main "github.com/barrettj12/500"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	c "github.com/barrettj12/collections"
@@ -89,4 +90,45 @@ func panicIfNotNil(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// RemoteController is the gRPC server side, which is run on the remote
+// player's machine.
+type RemoteController struct {
+	UnimplementedPlayerServer
+
+	player main.Player
+}
+
+var _ PlayerServer = &RemoteController{}
+
+func (c *RemoteController) NotifyPlayerNum(_ context.Context, n *wrapperspb.Int32Value) (*emptypb.Empty, error) {
+	c.player.NotifyPlayerNum(int(n.Value))
+	return nil, nil
+}
+
+func (c *RemoteController) NotifyHand(_ context.Context, h *Hand) (*emptypb.Empty, error) {
+	c.player.NotifyHand(decodeHand(h))
+	return nil, nil
+}
+
+func (c *RemoteController) NotifyPlay(_ context.Context, pi *PlayInfo) (*emptypb.Empty, error) {
+	c.player.NotifyPlay(
+		int(pi.Player),
+		decodeCard(pi.Card),
+	)
+	return nil, nil
+}
+
+func (c *RemoteController) NotifyTrickWinner(_ context.Context, winner *wrapperspb.Int32Value) (*emptypb.Empty, error) {
+	c.player.NotifyTrickWinner(int(winner.Value))
+	return nil, nil
+}
+
+func (c *RemoteController) Play(_ context.Context, req *PlayRequest) (*wrapperspb.Int32Value, error) {
+	n := c.player.Play(
+		decodeTrick(req.Trick),
+		decodeValidPlays(req.ValidPlays),
+	)
+	return &wrapperspb.Int32Value{Value: int32(n)}, nil
 }
